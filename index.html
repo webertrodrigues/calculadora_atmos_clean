@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Atmos Clean — Calculadora de Precificação</title>
+  <link rel="stylesheet" href="css/global.css">
+  <script src="js/scrypt.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-mark">AC</div>
+        <div>
+          <h1>Calculadora Atmos Clean</h1>
+          <p>precificação por serviço, custo, margem e orçamento acumulado</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="saveIndicator" class="save-indicator">salvo localmente</span>
+        <button class="btn secondary" type="button" data-action="home">Início</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="screen-home" class="screen active">
+      <section class="hero">
+        <div class="panel">
+          <div class="eyebrow">Calculadora comercial</div>
+          <h2 class="hero-title">Precificação por etapas</h2>
+          <p class="hero-text">Carregando a calculadora. Se esta tela ficar parada no iPhone, abra o arquivo pelo Safari ou Chrome, não pelo visualizador interno do Instagram.</p>
+          <div class="choice-grid">
+            <button class="choice" type="button" data-action="startWizard"><span class="icon">1</span><span><strong>Iniciar simulação</strong><span>Começar pela etapa de serviço.</span></span></button>
+            <button class="choice" type="button" data-action="openBase"><span class="icon">BD</span><span><strong>Base de dados</strong><span>Serviços, produtos e regras.</span></span></button>
+          </div>
+        </div>
+      </section>
+    </section>
+    <section id="screen-wizard" class="screen"></section>
+    <section id="screen-base" class="screen"></section>
+    <section id="screen-rules" class="screen"></section>
+    <section id="screen-quote" class="screen"></section>
+  </main>
+  <div id="toast" class="toast"></div>
+
+</body>
+</html>
