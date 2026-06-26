@@ -12,11 +12,11 @@
   <!-- 2. Funções de Integração com Supabase (Define as funções de salvar/carregar nuvem) -->
   <script src="js/supabase-integration.js"></script>
   
-  <!-- 3. Modificações (Sobrescreve loadStore ANTES do scrypt.js rodar) -->
-  <script src="js/scrypt-modifications.js"></script>
-  
-  <!-- 4. Script principal (Usa o loadStore já modificado) -->
+  <!-- 3. Script principal -->
   <script src="js/scrypt.js"></script>
+
+  <!-- 4. Modificações (Sobrescreve funções do scrypt.js e inicia sincronização) -->
+  <script src="js/scrypt-modifications.js"></script>
 </head>
 <body>
   <header class="app-header">
