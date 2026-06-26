@@ -551,6 +551,7 @@ var store = loadStore();
 var currentScreen = 'home';
 var currentStep = 1;
 var baseTab = 'servicos';
+var simulationHistory = [];
 var toastTimer = null;
 function uid(prefix) {
   if (prefix === void 0) { prefix = 'id'; }
@@ -862,9 +863,7 @@ function renderRules() {
   document.getElementById('screen-rules').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Regras de deslocamento e opera\u00E7\u00E3o</h2><p>Configura\u00E7\u00E3o fixa, salva no navegador e usada em todas as simula\u00E7\u00F5es.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">In\u00EDcio</button><button class=\"btn secondary\" type=\"button\" data-action=\"startWizard\">Simular</button></div></div><div class=\"form-grid three\">".concat(rulesFieldsHtml(), "</div><div class=\"divider\"></div><div class=\"section-head\"><div><h2>Resumo com as regras atuais</h2></div></div>").concat(breakdownHtml(calc()), "</section>");
 }
 function renderQuoteScreen() {
-  var totals = quoteTotals();
-  var count = store.quote.length;
-  document.getElementById('screen-quote').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Or\u00E7amento acumulado</h2><p>Tela separada para acompanhar todos os servi\u00E7os simulados antes de fechar com o cliente.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">In\u00EDcio</button><button class=\"btn secondary\" type=\"button\" data-action=\"startWizard\">Simular mais</button></div></div>".concat(quoteSummaryHtml(totals, count), "<div class=\"quote-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"newSimulation\">Nova simula\u00E7\u00E3o</button><button class=\"btn danger\" type=\"button\" data-action=\"clearQuote\">Limpar or\u00E7amento</button></div>").concat(quoteHtml() || '', "</section>");
+  renderQuoteScreenWithHistory();
 }
 function renderBase() {
   var tabs = [['servicos', 'Serviços'], ['produtos', 'Produtos'], ['categorias', 'Categorias'], ['etapas', 'Etapas'], ['dificuldades', 'Dificuldade'], ['margens', 'Margens'], ['backup', 'Backup']];
@@ -979,6 +978,9 @@ document.addEventListener('click', function (ev) {
   if (action === 'addQuote') {
       var q = __assign(__assign({}, calc()), { id: uid('q'), createdAt: new Date().toISOString() });
       store.quote.push(q);
+      // Salvar no histórico
+      if (!store.simulationHistory) store.simulationHistory = [];
+      store.simulationHistory.push(__assign(__assign({}, q), { addedToQuoteAt: new Date().toISOString() }));
       saveStore(false);
       toast('Serviço adicionado ao orçamento');
       render();
@@ -1009,6 +1011,39 @@ document.addEventListener('click', function (ev) {
       render();
       renderQuoteScreen();
       showScreen('quote', false);
+  }
+  if (action === 'openHistory') {
+      renderHistoryScreen();
+      showScreen('history');
+  }
+  if (action === 'editQuoteItem') {
+      var quoteIndex = parseInt(btn.dataset.quoteIndex, 10);
+      if (store.quote[quoteIndex]) {
+          // Abrir modal ou tela de edição
+          showEditQuoteModal(quoteIndex);
+      }
+  }
+  if (action === 'saveEditedQuote') {
+      var quoteIndex = parseInt(btn.dataset.quoteIndex, 10);
+      var editModal = document.getElementById('editQuoteModal');
+      if (editModal && store.quote[quoteIndex]) {
+          var finalPriceInput = editModal.querySelector('[data-edit-field="finalPrice"]');
+          var totalCostInput = editModal.querySelector('[data-edit-field="totalCost"]');
+          if (finalPriceInput && totalCostInput) {
+              store.quote[quoteIndex].finalPrice = parseNum(finalPriceInput.value);
+              store.quote[quoteIndex].totalCost = parseNum(totalCostInput.value);
+              store.quote[quoteIndex].profit = store.quote[quoteIndex].finalPrice - store.quote[quoteIndex].totalCost;
+              store.quote[quoteIndex].margin = store.quote[quoteIndex].finalPrice ? store.quote[quoteIndex].profit / store.quote[quoteIndex].finalPrice : 0;
+              saveStore(false);
+              editModal.style.display = 'none';
+              renderQuoteScreen();
+              toast('Orçamento atualizado');
+          }
+      }
+  }
+  if (action === 'closeEditModal') {
+      var editModal = document.getElementById('editQuoteModal');
+      if (editModal) editModal.style.display = 'none';
   }
   if (action === 'baseTab') {
       baseTab = btn.dataset.tab;
@@ -1257,3 +1292,46 @@ function importJson(file) {
 }
 // O render inicial agora é controlado pelo scrypt-modifications.js 
 // para garantir que os dados da nuvem cheguem primeiro.
+
+function renderHistoryScreen() {
+  var history = store.simulationHistory || [];
+  var historyHtml = history.length ? "<div class=\"quote-screen-list\">" + history.map(function (h, idx) { 
+    var _a; 
+    return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (history.length - idx) + "</div><div><h3>" + esc(h.serviceName) + "</h3><div class=\"quote-meta\">" + esc(h.category) + " • " + esc((_a = h.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • " + new Date(h.addedToQuoteAt).toLocaleString('pt-BR') + "</div></div></div></div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(h.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(h.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(h.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(h.margin) + "</strong></div></div></div>"; 
+  }).reverse().join('') + "</div>" : '<div class="empty">Nenhuma simulação no histórico ainda.</div>';
+  document.getElementById('screen-history').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Histórico de simulações</h2><p>Todas as simulações adicionadas ao orçamento acumulado.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"openQuote\">Voltar ao orçamento</button></div></div>" + historyHtml + "</section>";
+}
+
+function showEditQuoteModal(quoteIndex) {
+  var q = store.quote[quoteIndex];
+  if (!q) return;
+  var modal = document.getElementById('editQuoteModal');
+  if (!modal) {
+      var newModal = document.createElement('div');
+      newModal.id = 'editQuoteModal';
+      newModal.className = 'modal';
+      document.body.appendChild(newModal);
+      modal = newModal;
+  }
+  modal.innerHTML = "<div class=\"modal-content\"><div class=\"modal-header\"><h2>Editar orçamento</h2><button type=\"button\" data-action=\"closeEditModal\" class=\"btn ghost\">✕</button></div><div class=\"modal-body\"><div class=\"form-grid\"><div class=\"field\"><label>Serviço</label><input readonly value=\"" + esc(q.serviceName) + "\"></div><div class=\"field\"><label>Valor a receber (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.finalPrice + "\" data-edit-field=\"finalPrice\"></div><div class=\"field\"><label>Custo total (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.totalCost + "\" data-edit-field=\"totalCost\"></div></div></div><div class=\"modal-footer\"><button type=\"button\" data-action=\"closeEditModal\" class=\"btn secondary\">Cancelar</button><button type=\"button\" data-action=\"saveEditedQuote\" data-quote-index=\"" + quoteIndex + "\" class=\"btn\">Salvar</button></div></div>";
+  modal.style.display = 'flex';
+  // Fechar modal ao clicar fora
+  modal.addEventListener('click', function (e) {
+      if (e.target === modal) modal.style.display = 'none';
+  });
+}
+
+function quoteHtmlWithEdit() {
+  if (!store.quote.length)
+      return '<div class="empty">Nenhum serviço acumulado ainda. Clique em "Simular mais", configure um serviço e adicione ao orçamento.</div>';
+  return "<div class=\"quote-screen-list\">" + store.quote.map(function (q, idx) { 
+    var _a; 
+    return "<div class=\"quote-card\" data-quote-index=\"" + idx + "\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (idx + 1) + "</div><div><h3>" + esc(q.serviceName) + "</h3><div class=\"quote-meta\">" + esc(q.category) + " • " + esc((_a = q.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • etapas: " + ((q.stages || []).map(function (s) { return esc(s.name); }).join(', ') || 'nenhuma') + "</div></div></div><button class=\"btn secondary small\" type=\"button\" data-action=\"editQuoteItem\" data-quote-index=\"" + idx + "\">Editar</button><button class=\"btn danger small\" type=\"button\" data-action=\"removeQuote\" data-index=\"" + idx + "\">Remover</button></div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(q.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(q.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(q.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(q.margin) + "</strong></div></div></div>"; 
+  }).join('') + "</div>";
+}
+
+function renderQuoteScreenWithHistory() {
+  var totals = quoteTotals();
+  var count = store.quote.length;
+  document.getElementById('screen-quote').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Orçamento acumulado</h2><p>Tela separada para acompanhar todos os serviços simulados antes de fechar com o cliente.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"startWizard\">Simular mais</button><button class=\"btn secondary\" type=\"button\" data-action=\"openHistory\">Histórico</button></div></div>" + quoteSummaryHtml(totals, count) + "<div class=\"quote-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"newSimulation\">Nova simulação</button><button class=\"btn danger\" type=\"button\" data-action=\"clearQuote\">Limpar orçamento</button></div>" + (quoteHtmlWithEdit() || '') + "</section>";
+}
