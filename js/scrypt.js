@@ -628,23 +628,25 @@ function serviceComplete(s) { return "".concat((s === null || s === void 0 ? voi
 function serviceLabel(s) { return "".concat(serviceComplete(s)).concat((s === null || s === void 0 ? void 0 : s.typeSize) ? ' — ' + s.typeSize : ''); }
 function productUnitCost(p) { return parseNum(p === null || p === void 0 ? void 0 : p.packageValue) / (parseNum(p === null || p === void 0 ? void 0 : p.volume) || 1); }
 function loadStore() {
-  var loaded = null;
-  try {
-      loaded = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+  console.log('scrypt.js: chamando loadStore');
+  // Se existir uma função global definida (pelo scrypt-modifications.js), usa ela
+  if (typeof window.loadStore === 'function' && window.loadStore !== loadStore) {
+    var result = window.loadStore();
+    console.log('scrypt.js: loadStore carregado via window.loadStore');
+    return result;
   }
-  catch (e) {
-      loaded = null;
-  }
-  var fresh = { data: clone(DEFAULT_DATA), quote: [], sim: defaultSimFromData(DEFAULT_DATA) };
-  if (!loaded || !loaded.data)
-      return fresh;
-  var merged = {
-      data: mergeData(loaded.data),
-      quote: Array.isArray(loaded.quote) ? loaded.quote : [],
-      sim: loaded.sim || null
+  
+  // Fallback para dados padrão se a integração não estiver pronta
+  console.log('scrypt.js: usando DEFAULT_DATA (fallback)');
+  var data = typeof DEFAULT_DATA !== 'undefined' ? clone(DEFAULT_DATA) : { 
+    categories: [], services: [], products: [], stages: [], difficulties: [], rules: {}, margins: [], defaults: {} 
   };
-  merged.sim = normalizeSim(merged.sim || defaultSimFromData(merged.data), merged.data);
-  return merged;
+  
+  return { 
+    data: data, 
+    quote: [], 
+    sim: typeof defaultSimFromData === 'function' ? defaultSimFromData(data) : null 
+  };
 }
 function mergeData(data) {
   var d = clone(DEFAULT_DATA);
@@ -684,17 +686,11 @@ function normalizeSim(sim, data) {
 }
 function saveStore(show) {
   if (show === void 0) { show = true; }
-  try {
-      store.sim = normalizeSim(store.sim, store.data);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-      setSave('salvo localmente', true);
-      if (show)
-          toast('Alterações salvas');
+  // Prioriza a função global (sobrescrita pelo scrypt-modifications.js)
+  if (typeof window.saveStore === 'function' && window.saveStore !== saveStore) {
+    return window.saveStore(show);
   }
-  catch (e) {
-      setSave('não consegui salvar localmente', false);
-      console.error(e);
-  }
+  console.warn('saveStore global não definida, os dados podem não ser salvos na nuvem.');
 }
 function setSave(text, ok) { var el = document.getElementById('saveIndicator'); if (el) {
   el.textContent = text;
@@ -1259,6 +1255,11 @@ function importJson(file) {
       });
   });
 }
-document.addEventListener('DOMContentLoaded', render);
-if (document.readyState !== 'loading')
-  render();
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM carregado, iniciando render');
+  if (typeof render === 'function') render();
+});
+if (document.readyState !== 'loading') {
+  console.log('Documento já pronto, iniciando render');
+  if (typeof render === 'function') render();
+}

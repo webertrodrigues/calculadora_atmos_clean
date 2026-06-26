@@ -1,30 +1,52 @@
 /**
  * Integração com Supabase para sincronização de dados
- * Substitui localStorage por sincronização em tempo real
+ * Versão simplificada: Salva apenas na nuvem
  */
 
 // Configuração do Supabase
 const SUPABASE_URL = 'https://ylctxcvzqlmmczzfzech.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_z_roWQ0ecyPl4BUjruI8Ow_2_3r9uRS';
-const SUPABASE_STORAGE_KEY = 'atmos-clean-store'; // Renomeado para evitar conflito
+const SUPABASE_STORAGE_KEY = 'atmos-clean-store';
 
 // Cliente Supabase
 let supabaseClient = null;
 let isSupabaseReady = false;
+let supabaseConnectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 5;
 
 /**
  * Inicializa o cliente Supabase
  */
 function initSupabase() {
+  console.log('Iniciando initSupabase...');
   if (typeof supabase === 'undefined') {
-    console.warn('Supabase JS library não carregada. Usando localStorage.');
+    console.error('Supabase JS library não carregada.');
     return false;
   }
   
   try {
-    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    isSupabaseReady = true;
-    console.log('Supabase inicializado com sucesso');
+    if (!supabaseClient) {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('Cliente Supabase criado');
+    }
+    
+    checkSupabaseConnection().then(isConnected => {
+      if (isConnected) {
+        isSupabaseReady = true;
+        console.log('✅ Supabase conectado');
+      } else {
+        console.warn('Falha na conexão inicial (pode ser bloqueio de Tracking Prevention). Tentando novamente...');
+        retrySupabaseConnection();
+      }
+    }).catch(err => {
+      console.error('Erro ao checar conexão (Supabase):', err);
+      // Se falhar por bloqueio de origem ou tracking, avisar no console
+      if (window.location.protocol === 'file:') {
+        console.error('ERRO DE SEGURANÇA: Acesso via file:// detectado. O Supabase e o armazenamento do navegador são bloqueados por padrão em arquivos locais. Por favor, use um servidor local (Live Server) ou hospede no GitHub Pages.');
+      }
+      retrySupabaseConnection();
+    });
+    
     return true;
   } catch (e) {
     console.error('Erro ao inicializar Supabase:', e);
@@ -32,50 +54,49 @@ function initSupabase() {
   }
 }
 
+function retrySupabaseConnection() {
+  if (supabaseConnectionAttempts >= MAX_CONNECTION_ATTEMPTS) return;
+  supabaseConnectionAttempts++;
+  setTimeout(() => {
+    checkSupabaseConnection().then(isConnected => {
+      if (isConnected) {
+        isSupabaseReady = true;
+      } else {
+        retrySupabaseConnection();
+      }
+    });
+  }, 2000);
+}
+
 /**
- * Salva os dados no Supabase
+ * Salva os dados exclusivamente no Supabase
  */
 async function saveToSupabase(data) {
-  if (!supabaseClient || !isSupabaseReady) return false;
+  if (!supabaseClient || !isSupabaseReady) {
+    console.warn('Supabase não está pronto para salvar');
+    return false;
+  }
   
   try {
-    const { data: existingData, error: fetchError } = await supabaseClient
+    const dataToSave = typeof data === 'string' ? JSON.parse(data) : data;
+    
+    // Upsert (atualiza se a chave existir, senão insere)
+    const { error } = await supabaseClient
       .from('calculator_data')
-      .select('id')
-      .eq('key', SUPABASE_STORAGE_KEY)
-      .single();
+      .upsert({
+        key: SUPABASE_STORAGE_KEY,
+        value: dataToSave,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
     
-    let result;
-    
-    if (existingData) {
-      // Atualizar registro existente
-      result = await supabaseClient
-        .from('calculator_data')
-        .update({
-          value: data,
-          updated_at: new Date().toISOString()
-        })
-        .eq('key', SUPABASE_STORAGE_KEY);
-    } else {
-      // Inserir novo registro
-      result = await supabaseClient
-        .from('calculator_data')
-        .insert([{
-          key: SUPABASE_STORAGE_KEY,
-          value: data,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }]);
-    }
-    
-    if (result.error) {
-      console.error('Erro ao salvar no Supabase:', result.error);
+    if (error) {
+      console.error('Erro ao salvar no Supabase:', error);
       return false;
     }
     
     return true;
   } catch (e) {
-    console.error('Erro ao salvar dados:', e);
+    console.error('Erro na função saveToSupabase:', e);
     return false;
   }
 }
@@ -91,16 +112,16 @@ async function loadFromSupabase() {
       .from('calculator_data')
       .select('value')
       .eq('key', SUPABASE_STORAGE_KEY)
-      .single();
+      .maybeSingle();
     
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error('Erro ao carregar do Supabase:', error);
       return null;
     }
     
     return data ? data.value : null;
   } catch (e) {
-    console.error('Erro ao carregar dados:', e);
+    console.error('Erro na função loadFromSupabase:', e);
     return null;
   }
 }
@@ -111,51 +132,39 @@ async function loadFromSupabase() {
 function subscribeToChanges(callback) {
   if (!supabaseClient || !isSupabaseReady) return null;
   
-  const subscription = supabaseClient
-    .channel(`public:calculator_data`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
+  try {
+    return supabaseClient
+      .channel('public:calculator_data')
+      .on('postgres_changes', {
+        event: 'UPDATE',
         schema: 'public',
         table: 'calculator_data',
         filter: `key=eq.${SUPABASE_STORAGE_KEY}`
-      },
-      (payload) => {
-        console.log('Dados atualizados em tempo real:', payload);
+      }, (payload) => {
         if (callback && payload.new && payload.new.value) {
-            callback(payload.new.value);
+          callback(payload.new.value);
         }
-      }
-    )
-    .subscribe();
-  
-  return subscription;
+      })
+      .subscribe();
+  } catch (e) {
+    console.error('Erro ao assinar mudanças:', e);
+    return null;
+  }
 }
 
-/**
- * Verifica se há conexão com Supabase
- */
 async function checkSupabaseConnection() {
   if (!supabaseClient) return false;
-  
   try {
-    // Uma forma mais simples de checar conexão sem depender de auth session
-    const { data, error } = await supabaseClient.from('calculator_data').select('id').limit(1);
+    const { error } = await supabaseClient.from('calculator_data').select('id').limit(1);
     return !error;
   } catch (e) {
     return false;
   }
 }
 
-// Inicializar Supabase quando o documento carregar
-document.addEventListener('DOMContentLoaded', function() {
+// Inicialização
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initSupabase);
+} else {
   initSupabase();
-  checkSupabaseConnection().then(isConnected => {
-    const indicator = document.getElementById('saveIndicator');
-    if (indicator && isConnected) {
-      indicator.textContent = '☁️ Conectado à nuvem';
-      indicator.classList.add('ok');
-    }
-  });
-});
+}
