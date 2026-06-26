@@ -469,28 +469,35 @@ var DEFAULT_DATA = {
       {
           "id": "dif1",
           "name": "Leve",
-          "situation": "Sujeira superficial, sem manchas.",
-          "weight": 1.0,
+          "situation": "sujeira normal, manutenção",
+          "weight": 0.95,
           "defaultSelected": true
       },
       {
           "id": "dif2",
           "name": "Média",
-          "situation": "Uso normal, algumas manchas leves.",
-          "weight": 1.2,
+          "situation": "encardido, uso intenso, demora maior",
+          "weight": 1.1,
           "defaultSelected": false
       },
       {
           "id": "dif3",
-          "name": "Pesada",
-          "situation": "Sujeira encrostada, muitas manchas.",
-          "weight": 1.5,
+          "name": "Alta",
+          "situation": "muito sujo, pet, suor forte, gordura leve",
+          "weight": 1.2,
           "defaultSelected": false
       },
       {
           "id": "dif4",
+          "name": "Crítica",
+          "situation": "urina, mofo, odor forte, muita mancha",
+          "weight": 1.4,
+          "defaultSelected": false
+      },
+      {
+          "id": "dif5",
           "name": "Extrema",
-          "situation": "Estado crítico, odores fortes, mofo.",
+          "situation": "risco alto de retrabalho/reclamação",
           "weight": 1.8,
           "defaultSelected": false
       }
@@ -544,6 +551,7 @@ var store = loadStore();
 var currentScreen = 'home';
 var currentStep = 1;
 var baseTab = 'servicos';
+var simulationHistory = [];
 var toastTimer = null;
 function uid(prefix) {
   if (prefix === void 0) { prefix = 'id'; }
@@ -638,7 +646,6 @@ function loadStore() {
   return { 
     data: data, 
     quote: [], 
-    simulationHistory: [],
     sim: typeof defaultSimFromData === 'function' ? defaultSimFromData(data) : null 
   };
 }
@@ -765,27 +772,7 @@ function renderHome() {
 function renderWizard() {
   var shell = document.getElementById('screen-wizard');
   var c = calc();
-  
-  // LOG AUTOMÁTICO: Se chegar na etapa 6, salvar no histórico se ainda não estiver lá
-  if (currentStep === 6) {
-    if (!store.simulationHistory) store.simulationHistory = [];
-    // Evitar duplicatas exatas no mesmo segundo
-    var now = new Date().toISOString();
-    var lastEntry = store.simulationHistory[store.simulationHistory.length - 1];
-    var isDuplicate = lastEntry && 
-                     lastEntry.serviceName === c.serviceName && 
-                     lastEntry.finalPrice === c.finalPrice && 
-                     (new Date(now) - new Date(lastEntry.addedToQuoteAt)) < 2000;
-
-    if (!isDuplicate) {
-      var historyEntry = __assign(__assign({}, c), { addedToQuoteAt: now });
-      store.simulationHistory.push(historyEntry);
-      saveStore(false);
-      console.log('Simulação registrada automaticamente no histórico (Etapa 6)');
-    }
-  }
-
-  shell.innerHTML = "\n      <div class=\"wizard-shell\">\n        ".concat(progressHtml(), "\n        <div class=\"wizard-layout\">\n          <div class=\"wizard-main\">\n            ").concat(stepTitleHtml(), "\n            ").concat(stepContentHtml(currentStep, c), "\n            ").concat(wizardNavHtml(), "\n          </div>\n          <aside class=\"wizard-aside\">\n            <div class=\"panel sticky\">\n              <div class=\"section-head\"><div><h2>Resumo din\u00E2mico</h2><p>Valores atualizados em tempo real.</p></div></div>\n              ").concat(summaryHtml(c), "\n              <div class=\"divider\"></div>\n              ").concat(breakdownHtml(c), "\n            </div>\n          </aside>\n        </div>\n      </div>");
+  shell.innerHTML = "\n      <div class=\"wizard-shell\">\n        ".concat(progressHtml(), "\n        <div class=\"wizard-layout\">\n          <div class=\"wizard-main\">\n            <section class=\"step-card\">\n              ").concat(stepTitleHtml(), "\n              <div id=\"stepContent\">").concat(stepContentHtml(currentStep, c), "</div>\n              ").concat(wizardNavHtml(), "\n            </section>\n          </div>\n          <aside class=\"live-summary\">\n            <section class=\"step-card\">\n              <div class=\"section-head\"><div><h2>Resumo ao vivo</h2><p>Atualiza sozinho conforme voc\u00EA altera.</p></div></div>\n              ").concat(summaryHtml(c), "\n              <div class=\"divider\"></div>\n              ").concat(breakdownHtml(c), "\n            </section>\n          </aside>\n        </div>\n      </div>");
 }
 function progressHtml() {
   var p = Math.round((currentStep / 6) * 100);
@@ -907,10 +894,10 @@ function baseCategoriesHtml() {
   return "<div class=\"base-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"addCategory\">Adicionar categoria</button></div><div class=\"data-grid\">".concat(store.data.categories.map(function (c, idx) { return "<div class=\"data-card\"><div class=\"field\"><label>Categoria</label><input value=\"".concat(attr(c.name), "\" data-base=\"category.name\" data-index=\"").concat(idx, "\"></div><button class=\"btn danger small\" type=\"button\" data-action=\"deleteCategory\" data-index=\"").concat(idx, "\">Excluir</button></div>"); }).join(''), "</div>");
 }
 function baseStagesHtml() {
-  return "<div class=\"base-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"addStage\">Adicionar etapa</button></div><div class=\"data-grid\">".concat(store.data.stages.map(function (s, idx) { return "<div class=\"data-card\"><div class=\"form-grid\"><div class=\"field\"><label>Etapa</label><input value=\"".concat(attr(s.name), "\" data-base=\"stage.name\" data-index=\"").concat(idx, "\"></div><div class=\"field\"><label>Peso</label><input type=\"number\" step=\"0.01\" value=\"".concat(attr(s.weight), "\" data-base=\"stage.weight\" data-index=\"").concat(idx, "\"></div><label class=\"option-card\" style=\"grid-column:1/-1\"><input type=\"checkbox\" ").concat(s.defaultSelected ? 'checked' : '', " data-base=\"stage.defaultSelected\" data-index=\"").concat(idx, "\"><span><strong>Selecionar por padr\u00E3o em nova simula\u00E7\u00E3o</strong></span></label></div><button class=\"btn danger small\" type=\"button\" data-action=\"deleteStage\" data-index=\"").concat(idx, "\">Excluir</button></div>"); }).join(''), "</div>");
+  return "<div class=\"base-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"addStage\">Adicionar etapa</button></div><div class=\"data-grid\">".concat(store.data.stages.map(function (s, idx) { return "<div class=\"data-card\"><div class=\"form-grid\"><div class=\"field\"><label>Etapa</label><input value=\"".concat(attr(s.name), "\" data-base=\"stage.name\" data-index=\"").concat(idx, "\"></div><div class=\"field\"><label>Peso</label><input type=\"number\" step=\"0.01\" value=\"").concat(attr(s.weight), "\" data-base=\"stage.weight\" data-index=\"").concat(idx, "\"></div><label class=\"option-card\" style=\"grid-column:1/-1\"><input type=\"checkbox\" ").concat(s.defaultSelected ? 'checked' : '', " data-base=\"stage.defaultSelected\" data-index=\"").concat(idx, "\"><span><strong>Selecionar por padr\u00E3o em nova simula\u00E7\u00E3o</strong></span></label></div><button class=\"btn danger small\" type=\"button\" data-action=\"deleteStage\" data-index=\"").concat(idx, "\">Excluir</button></div>"); }).join(''), "</div>");
 }
 function baseDifficultiesHtml() {
-  return "<div class=\"base-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"addDifficulty\">Adicionar dificuldade</button></div><div class=\"data-grid\">".concat(store.data.difficulties.map(function (d, idx) { return "<div class=\"data-card\"><div class=\"form-grid\"><div class=\"field\"><label>N\u00EDvel</label><input value=\"".concat(attr(d.name), "\" data-base=\"difficulty.name\" data-index=\"").concat(idx, "\"></div><div class=\"field\"><label>Peso</label><input type=\"number\" step=\"0.01\" value=\"".concat(attr(d.weight), "\" data-base=\"difficulty.weight\" data-index=\"").concat(idx, "\"></div><div class=\"field\" style=\"grid-column:1/-1\"><label>Situa\u00E7\u00E3o</label><input value=\"").concat(attr(d.situation), "\" data-base=\"difficulty.situation\" data-index=\"").concat(idx, "\"></div><label class=\"option-card\" style=\"grid-column:1/-1\"><input type=\"radio\" name=\"defaultDifficulty\" ").concat(d.defaultSelected ? 'checked' : '', " data-base=\"difficulty.defaultSelected\" data-index=\"").concat(idx, "\"><span><strong>Selecionar por padr\u00E3o em nova simula\u00E7\u00E3o</strong></span></label></div><button class=\"btn danger small\" type=\"button\" data-action=\"deleteDifficulty\" data-index=\"").concat(idx, "\">Excluir</button></div>"); }).join(''), "</div>");
+  return "<div class=\"base-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"addDifficulty\">Adicionar dificuldade</button></div><div class=\"data-grid\">".concat(store.data.difficulties.map(function (d, idx) { return "<div class=\"data-card\"><div class=\"form-grid\"><div class=\"field\"><label>N\u00EDvel</label><input value=\"".concat(attr(d.name), "\" data-base=\"difficulty.name\" data-index=\"").concat(idx, "\"></div><div class=\"field\"><label>Peso</label><input type=\"number\" step=\"0.01\" value=\"").concat(attr(d.weight), "\" data-base=\"difficulty.weight\" data-index=\"").concat(idx, "\"></div><div class=\"field\" style=\"grid-column:1/-1\"><label>Situa\u00E7\u00E3o</label><input value=\"").concat(attr(d.situation), "\" data-base=\"difficulty.situation\" data-index=\"").concat(idx, "\"></div><label class=\"option-card\" style=\"grid-column:1/-1\"><input type=\"radio\" name=\"defaultDifficulty\" ").concat(d.defaultSelected ? 'checked' : '', " data-base=\"difficulty.defaultSelected\" data-index=\"").concat(idx, "\"><span><strong>Selecionar por padr\u00E3o em nova simula\u00E7\u00E3o</strong></span></label></div><button class=\"btn danger small\" type=\"button\" data-action=\"deleteDifficulty\" data-index=\"").concat(idx, "\">Excluir</button></div>"); }).join(''), "</div>");
 }
 function baseMarginsHtml() {
   return "<div class=\"base-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"addMargin\">Adicionar margem</button></div><div class=\"data-grid\">".concat(store.data.margins.map(function (m, idx) { return "<div class=\"data-card\"><div class=\"field\"><label>Margem desejada</label><input type=\"number\" step=\"0.01\" min=\"0\" max=\"0.99\" value=\"".concat(attr(m), "\" data-base=\"margin\" data-index=\"").concat(idx, "\"><span class=\"hint\">").concat(percent(m), "</span></div><button class=\"btn danger small\" type=\"button\" data-action=\"deleteMargin\" data-index=\"").concat(idx, "\">Excluir</button></div>"); }).join(''), "</div>");
@@ -991,20 +978,25 @@ document.addEventListener('click', function (ev) {
   if (action === 'addQuote') {
       var q = __assign(__assign({}, calc()), { id: uid('q'), createdAt: new Date().toISOString() });
       store.quote.push(q);
-      saveStore(true);
+      // Salvar no histórico
+      if (!store.simulationHistory) store.simulationHistory = [];
+      store.simulationHistory.push(__assign(__assign({}, q), { addedToQuoteAt: new Date().toISOString() }));
+      saveStore(false);
+      toast('Serviço adicionado ao orçamento');
+      render();
       renderQuoteScreen();
       showScreen('quote');
-      toast('Adicionado ao orçamento');
   }
   if (action === 'newSimulation') {
       store.sim = defaultSimFromData(store.data);
       currentStep = 1;
       saveStore(false);
       renderWizard();
+      toast('Nova simulação iniciada');
       showScreen('wizard');
   }
   if (action === 'clearQuote') {
-      if (confirm('Limpar todo o orçamento acumulado?')) {
+      if (confirm('Limpar todos os serviços do orçamento acumulado?')) {
           store.quote = [];
           saveStore(false);
           render();
@@ -1027,6 +1019,7 @@ document.addEventListener('click', function (ev) {
   if (action === 'editQuoteItem') {
       var quoteIndex = parseInt(btn.dataset.quoteIndex, 10);
       if (store.quote[quoteIndex]) {
+          // Abrir modal ou tela de edição
           showEditQuoteModal(quoteIndex);
       }
   }
@@ -1034,30 +1027,18 @@ document.addEventListener('click', function (ev) {
       var quoteIndex = parseInt(btn.dataset.quoteIndex, 10);
       var editModal = document.getElementById('editQuoteModal');
       if (editModal && store.quote[quoteIndex]) {
-          var q = store.quote[quoteIndex];
-          
-          // Campos básicos
-          q.finalPrice = parseNum(editModal.querySelector('[data-edit-field="finalPrice"]').value);
-          q.totalCost = parseNum(editModal.querySelector('[data-edit-field="totalCost"]').value);
-          
-          // Custos detalhados
-          q.costMechanic = parseNum(editModal.querySelector('[data-edit-field="costMechanic"]').value);
-          q.costFuel = parseNum(editModal.querySelector('[data-edit-field="costFuel"]').value);
-          q.costMachine = parseNum(editModal.querySelector('[data-edit-field="costMachine"]').value);
-          q.costProducts = parseNum(editModal.querySelector('[data-edit-field="costProducts"]').value);
-          
-          // Recalcular totais se necessário (caso o usuário tenha editado os custos mas não o total)
-          // Aqui priorizamos o que o usuário digitou no Total Cost, mas se ele editou os detalhes,
-          // talvez devêssemos somar. Para flexibilidade total, deixamos ele editar tudo.
-          
-          q.profit = q.finalPrice - q.totalCost;
-          q.margin = q.finalPrice ? q.profit / q.finalPrice : 0;
-          q.markup = q.totalCost ? q.finalPrice / q.totalCost : 0;
-          
-          saveStore(false);
-          editModal.style.display = 'none';
-          renderQuoteScreen();
-          toast('Orçamento atualizado');
+          var finalPriceInput = editModal.querySelector('[data-edit-field="finalPrice"]');
+          var totalCostInput = editModal.querySelector('[data-edit-field="totalCost"]');
+          if (finalPriceInput && totalCostInput) {
+              store.quote[quoteIndex].finalPrice = parseNum(finalPriceInput.value);
+              store.quote[quoteIndex].totalCost = parseNum(totalCostInput.value);
+              store.quote[quoteIndex].profit = store.quote[quoteIndex].finalPrice - store.quote[quoteIndex].totalCost;
+              store.quote[quoteIndex].margin = store.quote[quoteIndex].finalPrice ? store.quote[quoteIndex].profit / store.quote[quoteIndex].finalPrice : 0;
+              saveStore(false);
+              editModal.style.display = 'none';
+              renderQuoteScreen();
+              toast('Orçamento atualizado');
+          }
       }
   }
   if (action === 'closeEditModal') {
@@ -1144,7 +1125,7 @@ document.addEventListener('click', function (ev) {
   if (action === 'restoreDefaults') {
       if (confirm('Restaurar base original extraída da planilha?')) {
           var keepQuote = store.quote;
-          store = { data: clone(DEFAULT_DATA), quote: keepQuote, sim: defaultSimFromData(DEFAULT_DATA), simulationHistory: store.simulationHistory || [] };
+          store = { data: clone(DEFAULT_DATA), quote: keepQuote, sim: defaultSimFromData(DEFAULT_DATA) };
           saveStore(false);
           render();
           showScreen('base', false);
@@ -1309,6 +1290,8 @@ function importJson(file) {
       });
   });
 }
+// O render inicial agora é controlado pelo scrypt-modifications.js 
+// para garantir que os dados da nuvem cheguem primeiro.
 
 function renderHistoryScreen() {
   var history = store.simulationHistory || [];
@@ -1316,7 +1299,7 @@ function renderHistoryScreen() {
     var _a; 
     return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (history.length - idx) + "</div><div><h3>" + esc(h.serviceName) + "</h3><div class=\"quote-meta\">" + esc(h.category) + " • " + esc((_a = h.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • " + new Date(h.addedToQuoteAt).toLocaleString('pt-BR') + "</div></div></div></div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(h.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(h.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(h.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(h.margin) + "</strong></div></div></div>"; 
   }).reverse().join('') + "</div>" : '<div class="empty">Nenhuma simulação no histórico ainda.</div>';
-  document.getElementById('screen-history').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Histórico de simulações</h2><p>Todas as simulações que chegaram à Etapa 6 (Resumo).</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"openQuote\">Voltar ao orçamento</button></div></div>" + historyHtml + "</section>";
+  document.getElementById('screen-history').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Histórico de simulações</h2><p>Todas as simulações adicionadas ao orçamento acumulado.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"openQuote\">Voltar ao orçamento</button></div></div>" + historyHtml + "</section>";
 }
 
 function showEditQuoteModal(quoteIndex) {
@@ -1330,8 +1313,9 @@ function showEditQuoteModal(quoteIndex) {
       document.body.appendChild(newModal);
       modal = newModal;
   }
-  modal.innerHTML = "<div class=\"modal-content\"><div class=\"modal-header\"><h2>Editar orçamento detalhado</h2><button type=\"button\" data-action=\"closeEditModal\" class=\"btn ghost\">✕</button></div><div class=\"modal-body\"><div class=\"form-grid\"><div class=\"field\" style=\"grid-column:1/-1\"><label>Serviço</label><input readonly value=\"" + esc(q.serviceName) + "\"></div><div class=\"field\"><label>Valor a receber (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.finalPrice + "\" data-edit-field=\"finalPrice\"></div><div class=\"field\"><label>Custo total (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.totalCost + "\" data-edit-field=\"totalCost\"></div><div class=\"field\"><label>Custo Mecânica (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + (q.costMechanic || 0) + "\" data-edit-field=\"costMechanic\"></div><div class=\"field\"><label>Custo Combustível (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + (q.costFuel || 0) + "\" data-edit-field=\"costFuel\"></div><div class=\"field\"><label>Custo Maquinário (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + (q.costMachine || 0) + "\" data-edit-field=\"costMachine\"></div><div class=\"field\"><label>Custo Produtos (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + (q.costProducts || 0) + "\" data-edit-field=\"costProducts\"></div></div></div><div class=\"modal-footer\"><button type=\"button\" data-action=\"closeEditModal\" class=\"btn secondary\">Cancelar</button><button type=\"button\" data-action=\"saveEditedQuote\" data-quote-index=\"" + quoteIndex + "\" class=\"btn\">Salvar</button></div></div>";
+  modal.innerHTML = "<div class=\"modal-content\"><div class=\"modal-header\"><h2>Editar orçamento</h2><button type=\"button\" data-action=\"closeEditModal\" class=\"btn ghost\">✕</button></div><div class=\"modal-body\"><div class=\"form-grid\"><div class=\"field\"><label>Serviço</label><input readonly value=\"" + esc(q.serviceName) + "\"></div><div class=\"field\"><label>Valor a receber (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.finalPrice + "\" data-edit-field=\"finalPrice\"></div><div class=\"field\"><label>Custo total (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.totalCost + "\" data-edit-field=\"totalCost\"></div></div></div><div class=\"modal-footer\"><button type=\"button\" data-action=\"closeEditModal\" class=\"btn secondary\">Cancelar</button><button type=\"button\" data-action=\"saveEditedQuote\" data-quote-index=\"" + quoteIndex + "\" class=\"btn\">Salvar</button></div></div>";
   modal.style.display = 'flex';
+  // Fechar modal ao clicar fora
   modal.addEventListener('click', function (e) {
       if (e.target === modal) modal.style.display = 'none';
   });
@@ -1342,7 +1326,7 @@ function quoteHtmlWithEdit() {
       return '<div class="empty">Nenhum serviço acumulado ainda. Clique em "Simular mais", configure um serviço e adicione ao orçamento.</div>';
   return "<div class=\"quote-screen-list\">" + store.quote.map(function (q, idx) { 
     var _a; 
-    return "<div class=\"quote-card\" data-quote-index=\"" + idx + "\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (idx + 1) + "</div><div><h3>" + esc(q.serviceName) + "</h3><div class=\"quote-meta\">" + esc(q.category) + " • " + esc((_a = q.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • etapas: " + ((q.stages || []).map(function (s) { return esc(s.name); }).join(', ') || 'nenhuma') + "</div></div></div><div class=\"quote-actions\"><button class=\"btn secondary small\" type=\"button\" data-action=\"editQuoteItem\" data-quote-index=\"" + idx + "\">Editar</button><button class=\"btn danger small\" type=\"button\" data-action=\"removeQuote\" data-index=\"" + idx + "\">Remover</button></div></div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(q.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(q.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(q.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(q.margin) + "</strong></div></div></div>"; 
+    return "<div class=\"quote-card\" data-quote-index=\"" + idx + "\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (idx + 1) + "</div><div><h3>" + esc(q.serviceName) + "</h3><div class=\"quote-meta\">" + esc(q.category) + " • " + esc((_a = q.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • etapas: " + ((q.stages || []).map(function (s) { return esc(s.name); }).join(', ') || 'nenhuma') + "</div></div></div><button class=\"btn secondary small\" type=\"button\" data-action=\"editQuoteItem\" data-quote-index=\"" + idx + "\">Editar</button><button class=\"btn danger small\" type=\"button\" data-action=\"removeQuote\" data-index=\"" + idx + "\">Remover</button></div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(q.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(q.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(q.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(q.margin) + "</strong></div></div></div>"; 
   }).join('') + "</div>";
 }
 

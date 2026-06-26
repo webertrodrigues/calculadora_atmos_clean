@@ -83,7 +83,6 @@ async function forceSyncFromCloud() {
         if (cloudData.data) store.data = typeof mergeData === 'function' ? mergeData(cloudData.data) : cloudData.data;
         if (cloudData.quote) store.quote = Array.isArray(cloudData.quote) ? cloudData.quote : [];
         if (cloudData.sim) store.sim = cloudData.sim;
-        if (cloudData.simulationHistory) store.simulationHistory = Array.isArray(cloudData.simulationHistory) ? cloudData.simulationHistory : [];
       } else {
         console.log('✨ Nuvem vazia, inicializando com dados padrão...');
         // Se não houver nada na nuvem, usamos o DEFAULT_DATA definido no scrypt.js
@@ -113,7 +112,6 @@ async function forceSyncFromCloud() {
       if (newData.data) store.data = typeof mergeData === 'function' ? mergeData(newData.data) : newData.data;
       if (newData.quote) store.quote = Array.isArray(newData.quote) ? newData.quote : [];
       if (newData.sim) store.sim = newData.sim;
-      if (newData.simulationHistory) store.simulationHistory = Array.isArray(newData.simulationHistory) ? newData.simulationHistory : [];
       if (typeof render === 'function') render();
       if (typeof toast === 'function') toast('Dados atualizados remotamente');
     }
