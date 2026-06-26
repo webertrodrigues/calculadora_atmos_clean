@@ -30,19 +30,17 @@ window.saveStore = function(show) {
 
 // Sobrescrever loadStore para retornar dados padrão inicialmente (será atualizado pelo sync)
 window.loadStore = function() {
-  console.log('📂 Inicializando com dados padrão (aguardando nuvem)...');
+  console.log('📂 Inicializando com estado vazio (aguardando nuvem)...');
   
-  const fresh = { 
-    data: typeof clone !== 'undefined' ? clone(DEFAULT_DATA) : DEFAULT_DATA, 
+  // Retorna um estado mínimo para não quebrar o scrypt.js, mas sem dados reais
+  return { 
+    data: { 
+      categories: [], services: [], products: [], stages: [], 
+      difficulties: [], rules: {}, margins: [], defaults: {} 
+    }, 
     quote: [], 
-    sim: null 
+    sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] } 
   };
-  
-  if (typeof defaultSimFromData === 'function') {
-    fresh.sim = defaultSimFromData(fresh.data);
-  }
-  
-  return fresh;
 };
 
 /**
@@ -71,12 +69,22 @@ async function forceSyncFromCloud() {
 
   try {
     const cloudData = await loadFromSupabase();
-    if (cloudData && typeof store !== 'undefined') {
-      console.log('📥 Dados carregados da nuvem');
-      
-      store.data = typeof mergeData === 'function' ? mergeData(cloudData.data) : cloudData.data;
-      store.quote = Array.isArray(cloudData.quote) ? cloudData.quote : [];
-      store.sim = cloudData.sim || store.sim;
+    if (typeof store !== 'undefined') {
+      if (cloudData) {
+        console.log('📥 Dados carregados da nuvem');
+        if (cloudData.data) store.data = typeof mergeData === 'function' ? mergeData(cloudData.data) : cloudData.data;
+        if (cloudData.quote) store.quote = Array.isArray(cloudData.quote) ? cloudData.quote : [];
+        if (cloudData.sim) store.sim = cloudData.sim;
+      } else {
+        console.log('✨ Nuvem vazia, inicializando com dados padrão...');
+        // Se não houver nada na nuvem, usamos o DEFAULT_DATA definido no scrypt.js
+        store.data = typeof clone !== 'undefined' ? clone(DEFAULT_DATA) : DEFAULT_DATA;
+        if (typeof defaultSimFromData === 'function') {
+          store.sim = defaultSimFromData(store.data);
+        }
+        // Salva imediatamente para criar o registro na nuvem
+        window.saveStore(false);
+      }
       
       if (typeof normalizeSim === 'function') {
         store.sim = normalizeSim(store.sim, store.data);
@@ -93,9 +101,9 @@ async function forceSyncFromCloud() {
   subscribeToChanges(newData => {
     if (newData && typeof store !== 'undefined') {
       console.log('📡 Atualização remota recebida');
-      store.data = typeof mergeData === 'function' ? mergeData(newData.data) : newData.data;
-      store.quote = Array.isArray(newData.quote) ? newData.quote : [];
-      store.sim = newData.sim || store.sim;
+      if (newData.data) store.data = typeof mergeData === 'function' ? mergeData(newData.data) : newData.data;
+      if (newData.quote) store.quote = Array.isArray(newData.quote) ? newData.quote : [];
+      if (newData.sim) store.sim = newData.sim;
       if (typeof render === 'function') render();
       if (typeof toast === 'function') toast('Dados atualizados remotamente');
     }

@@ -81,6 +81,7 @@ async function saveToSupabase(data) {
     const dataToSave = typeof data === 'string' ? JSON.parse(data) : data;
     
     // Upsert (atualiza se a chave existir, senão insere)
+    // Garantimos que estamos salvando o objeto completo {data, quote, sim}
     const { error } = await supabaseClient
       .from('calculator_data')
       .upsert({
@@ -155,9 +156,15 @@ function subscribeToChanges(callback) {
 async function checkSupabaseConnection() {
   if (!supabaseClient) return false;
   try {
-    const { error } = await supabaseClient.from('calculator_data').select('id').limit(1);
-    return !error;
+    // Tenta uma query simples para verificar se as chaves e a conexão estão ok
+    const { data, error } = await supabaseClient.from('calculator_data').select('key').eq('key', SUPABASE_STORAGE_KEY).maybeSingle();
+    if (error) {
+      console.error('Erro na conexão com Supabase:', error.message);
+      return false;
+    }
+    return true;
   } catch (e) {
+    console.error('Exceção ao checar conexão:', e);
     return false;
   }
 }
