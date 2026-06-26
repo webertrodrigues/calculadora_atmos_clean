@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Atmos Clean — Calculadora de Precificação</title>
   <link rel="stylesheet" href="css/global.css">
+  
+  <!-- 1. Supabase Client Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- 2. Funções de Integração com Supabase (Define as funções de salvar/carregar nuvem) -->
+  <script src="js/supabase-integration.js"></script>
+  
+  <!-- 3. Modificações (Sobrescreve loadStore ANTES do scrypt.js rodar) -->
+  <script src="js/scrypt-modifications.js"></script>
+  
+  <!-- 4. Script principal (Usa o loadStore já modificado) -->
   <script src="js/scrypt.js"></script>
 </head>
 <body>
@@ -18,7 +29,7 @@
         </div>
       </div>
       <div class="header-actions">
-        <span id="saveIndicator" class="save-indicator">salvo localmente</span>
+        <span id="saveIndicator" class="save-indicator">carregando...</span>
         <button class="btn secondary" type="button" data-action="home">Início</button>
       </div>
     </div>
@@ -30,7 +41,7 @@
         <div class="panel">
           <div class="eyebrow">Calculadora comercial</div>
           <h2 class="hero-title">Precificação por etapas</h2>
-          <p class="hero-text">Carregando a calculadora. Se esta tela ficar parada no iPhone, abra o arquivo pelo Safari ou Chrome, não pelo visualizador interno do Instagram.</p>
+          <p class="hero-text">Gerencie seus orçamentos com sincronização em tempo real.</p>
           <div class="choice-grid">
             <button class="choice" type="button" data-action="startWizard"><span class="icon">1</span><span><strong>Iniciar simulação</strong><span>Começar pela etapa de serviço.</span></span></button>
             <button class="choice" type="button" data-action="openBase"><span class="icon">BD</span><span><strong>Base de dados</strong><span>Serviços, produtos e regras.</span></span></button>
