@@ -1255,11 +1255,5 @@ function importJson(file) {
       });
   });
 }
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM carregado, iniciando render');
-  if (typeof render === 'function') render();
-});
-if (document.readyState !== 'loading') {
-  console.log('Documento já pronto, iniciando render');
-  if (typeof render === 'function') render();
-}
+// O render inicial agora é controlado pelo scrypt-modifications.js 
+// para garantir que os dados da nuvem cheguem primeiro.

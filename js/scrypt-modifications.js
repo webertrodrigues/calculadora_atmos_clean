@@ -2,46 +2,54 @@
  * Modificações para focar exclusivamente no Supabase
  */
 
-// Sobrescrever saveStore global para usar APENAS Supabase
-window.saveStore = function(show) {
-  if (show === void 0) { show = true; }
-  if (typeof store === 'undefined') return;
-
-  try {
-    // Normalizar antes de salvar
-    if (typeof normalizeSim === 'function') {
-      store.sim = normalizeSim(store.sim, store.data);
-    }
-    
-    if (typeof setSave === 'function') setSave('☁️ salvando...', true);
-    
-    saveToSupabase(store).then(success => {
-      if (success) {
-        if (typeof setSave === 'function') setSave('☁️ salvo na nuvem', true);
-        if (show && typeof toast === 'function') toast('Sincronizado com a nuvem');
-      } else {
-        if (typeof setSave === 'function') setSave('❌ erro ao salvar', false);
-      }
-    });
-  } catch (e) {
-    console.error('Erro ao salvar:', e);
-  }
-};
-
-// Sobrescrever loadStore para retornar dados padrão inicialmente (será atualizado pelo sync)
-window.loadStore = function() {
-  console.log('📂 Inicializando com estado vazio (aguardando nuvem)...');
+/**
+ * Força a sobrescrita das funções globais, mesmo que o scrypt.js tente redeclará-las
+ */
+function applyOverrides() {
+  console.log('🛠️ Aplicando overrides globais...');
   
-  // Retorna um estado mínimo para não quebrar o scrypt.js, mas sem dados reais
-  return { 
-    data: { 
-      categories: [], services: [], products: [], stages: [], 
-      difficulties: [], rules: {}, margins: [], defaults: {} 
-    }, 
-    quote: [], 
-    sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] } 
+  window.saveStore = function(show) {
+    if (show === void 0) { show = true; }
+    if (typeof store === 'undefined') return;
+
+    try {
+      if (typeof normalizeSim === 'function') {
+        store.sim = normalizeSim(store.sim, store.data);
+      }
+      
+      if (typeof setSave === 'function') setSave('☁️ salvando...', true);
+      
+      saveToSupabase(store).then(success => {
+        if (success) {
+          if (typeof setSave === 'function') setSave('☁️ salvo na nuvem', true);
+          if (show && typeof toast === 'function') toast('Sincronizado com a nuvem');
+        } else {
+          if (typeof setSave === 'function') setSave('❌ erro ao salvar', false);
+        }
+      });
+    } catch (e) {
+      console.error('Erro ao salvar:', e);
+    }
   };
-};
+
+  window.loadStore = function() {
+    console.log('📂 Inicializando com estado vazio (aguardando nuvem)...');
+    return { 
+      data: { 
+        categories: [], services: [], products: [], stages: [], 
+        difficulties: [], rules: {}, margins: [], defaults: {} 
+      }, 
+      quote: [], 
+      sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] } 
+    };
+  };
+}
+
+// Executa imediatamente e também no DOMContentLoaded para garantir
+applyOverrides();
+
+// Adiciona o listener para garantir que os overrides permaneçam
+document.addEventListener('DOMContentLoaded', applyOverrides);
 
 /**
  * Sincronização obrigatória com a nuvem

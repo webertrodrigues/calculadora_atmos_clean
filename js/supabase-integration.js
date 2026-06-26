@@ -71,7 +71,7 @@ function retrySupabaseConnection() {
 /**
  * Salva os dados exclusivamente no Supabase
  */
-async function saveToSupabase(data) {
+window.saveToSupabase = async function(data) {
   if (!supabaseClient || !isSupabaseReady) {
     console.warn('Supabase não está pronto para salvar');
     return false;
@@ -105,7 +105,7 @@ async function saveToSupabase(data) {
 /**
  * Carrega os dados do Supabase
  */
-async function loadFromSupabase() {
+window.loadFromSupabase = async function() {
   if (!supabaseClient || !isSupabaseReady) return null;
   
   try {
@@ -130,7 +130,7 @@ async function loadFromSupabase() {
 /**
  * Sincroniza dados em tempo real
  */
-function subscribeToChanges(callback) {
+window.subscribeToChanges = function(callback) {
   if (!supabaseClient || !isSupabaseReady) return null;
   
   try {
