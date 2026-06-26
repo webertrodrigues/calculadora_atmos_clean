@@ -4,11 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Atmos Clean — Calculadora de Precificação</title>
-  <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
   <link rel="stylesheet" href="css/global.css">
   
   <!-- 1. Supabase Client Library -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
   
   <!-- 2. Funções de Integração com Supabase (Define as funções de salvar/carregar nuvem) -->
   <script src="js/supabase-integration.js"></script>
@@ -30,7 +29,7 @@
         </div>
       </div>
       <div class="header-actions">
-        <span id="saveIndicator" class="save-indicator">carregando...</span>
+        <span id="saveIndicator" class="save-indicator">conectando à nuvem...</span>
         <button class="btn secondary" type="button" data-action="home">Início</button>
       </div>
     </div>
