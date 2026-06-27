@@ -39,6 +39,7 @@ function applyOverrides() {
         categories: [], services: [], products: [], stages: [], 
         difficulties: [], rules: {}, margins: [], defaults: {} 
       }, 
+      simulationHistory: [],
       quote: [], 
       sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] } 
     };
@@ -82,6 +83,7 @@ async function forceSyncFromCloud() {
         console.log('📥 Dados carregados da nuvem');
         if (cloudData.data) store.data = typeof mergeData === 'function' ? mergeData(cloudData.data) : cloudData.data;
         if (cloudData.quote) store.quote = Array.isArray(cloudData.quote) ? cloudData.quote : [];
+        store.simulationHistory = Array.isArray(cloudData.simulationHistory) ? cloudData.simulationHistory : [];
         if (cloudData.sim) store.sim = cloudData.sim;
       } else {
         console.log('✨ Nuvem vazia, inicializando com dados padrão...');
@@ -111,6 +113,7 @@ async function forceSyncFromCloud() {
       console.log('📡 Atualização remota recebida');
       if (newData.data) store.data = typeof mergeData === 'function' ? mergeData(newData.data) : newData.data;
       if (newData.quote) store.quote = Array.isArray(newData.quote) ? newData.quote : [];
+      store.simulationHistory = Array.isArray(newData.simulationHistory) ? newData.simulationHistory : [];
       if (newData.sim) store.sim = newData.sim;
       if (typeof render === 'function') render();
       if (typeof toast === 'function') toast('Dados atualizados remotamente');

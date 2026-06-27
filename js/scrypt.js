@@ -645,6 +645,7 @@ function loadStore() {
   
   return { 
     data: data, 
+    simulationHistory: [],
     quote: [], 
     sim: typeof defaultSimFromData === 'function' ? defaultSimFromData(data) : null 
   };
@@ -914,6 +915,65 @@ function quoteTotals() {
 function quoteSummaryHtml(totals, count) {
   return "<div class=\"quote-summary\"><div class=\"kpi main\"><span>Total a receber</span><strong>".concat(money(totals.finalPrice), "</strong></div><div class=\"kpi\"><span>Total de gastos</span><strong>").concat(money(totals.totalCost), "</strong></div><div class=\"kpi\"><span>Total de lucro</span><strong>").concat(money(totals.profit), "</strong></div><div class=\"kpi\"><span>Margem geral</span><strong>").concat(percent(totals.margin), "</strong></div><div class=\"kpi compact\"><span>Servi\u00E7os</span><strong>").concat(count, "</strong></div><div class=\"kpi compact\"><span>Markup geral</span><strong>").concat(num(totals.markup, 2), "x</strong></div></div>");
 }
+function ensureSimulationHistory() {
+  if (!Array.isArray(store.simulationHistory))
+      store.simulationHistory = [];
+  return store.simulationHistory;
+}
+function historyDate(h) {
+  return h.finalizedAt || h.addedToQuoteAt || h.quoteAddedAt || h.createdAt || h.updatedAt || new Date().toISOString();
+}
+function historyMetaDate(h) {
+  var d = new Date(historyDate(h));
+  return isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR');
+}
+function quoteProfitFields(q) {
+  q.finalPrice = round2(parseNum(q.finalPrice));
+  q.totalCost = round2(parseNum(q.totalCost));
+  q.profit = round2(q.finalPrice - q.totalCost);
+  q.margin = q.finalPrice ? q.profit / q.finalPrice : 0;
+  q.markup = q.totalCost ? q.finalPrice / q.totalCost : 0;
+  q.status = q.profit < 0 ? 'PREJUÍZO' : (q.margin < 0.5 ? 'MARGEM BAIXA' : 'OK');
+  return q;
+}
+function recordCurrentSimulationFinalized() {
+  var history = ensureSimulationHistory();
+  var now = new Date().toISOString();
+  var historyId = store.sim && store.sim.finalizedHistoryId;
+  var existingIndex = historyId ? history.findIndex(function (h) { return h.id === historyId; }) : -1;
+  var existing = existingIndex >= 0 ? history[existingIndex] : null;
+  var snapshot = quoteProfitFields(__assign(__assign({}, calc()), {
+      id: historyId || uid('hist'),
+      finalizedAt: (existing && existing.finalizedAt) || now,
+      updatedAt: now,
+      origin: 'finalizacao'
+  }));
+  if (!store.sim)
+      store.sim = defaultSimFromData(store.data);
+  store.sim.finalizedHistoryId = snapshot.id;
+  if (existingIndex >= 0) {
+      history[existingIndex] = __assign(__assign({}, existing), snapshot);
+  }
+  else {
+      history.push(snapshot);
+  }
+}
+function markQuoteAddedInHistory(q) {
+  var history = ensureSimulationHistory();
+  var historyId = q.historyEntryId || (store.sim && store.sim.finalizedHistoryId);
+  var idx = historyId ? history.findIndex(function (h) { return h.id === historyId; }) : -1;
+  if (idx >= 0) {
+      history[idx] = __assign(__assign({}, history[idx]), { quoteId: q.id, quoteAddedAt: q.createdAt || new Date().toISOString() });
+  }
+}
+function updateHistoryFromQuote(q) {
+  var history = ensureSimulationHistory();
+  var historyId = q.historyEntryId || q.id;
+  var idx = history.findIndex(function (h) { return h.id === historyId || h.quoteId === q.id; });
+  if (idx >= 0) {
+      history[idx] = __assign(__assign(__assign({}, history[idx]), q), { id: history[idx].id, quoteId: q.id, updatedAt: new Date().toISOString() });
+  }
+}
 function quoteHtml() {
   if (!store.quote.length)
       return '<div class="empty">Nenhum serviço acumulado ainda. Clique em “Simular mais”, configure um serviço e adicione ao orçamento.</div>';
@@ -949,6 +1009,10 @@ document.addEventListener('click', function (ev) {
   if (action === 'nextStep') {
       if (currentStep < 6) {
           currentStep++;
+          if (currentStep === 6) {
+              recordCurrentSimulationFinalized();
+              saveStore(false);
+          }
           renderWizard();
           safeScrollTop();
       }
@@ -962,6 +1026,10 @@ document.addEventListener('click', function (ev) {
   }
   if (action === 'step') {
       currentStep = parseInt(btn.dataset.step, 10);
+      if (currentStep === 6) {
+          recordCurrentSimulationFinalized();
+          saveStore(false);
+      }
       renderWizard();
   }
   if (action === 'addProductRow') {
@@ -976,11 +1044,13 @@ document.addEventListener('click', function (ev) {
       renderWizard();
   }
   if (action === 'addQuote') {
-      var q = __assign(__assign({}, calc()), { id: uid('q'), createdAt: new Date().toISOString() });
+      if (currentStep === 6) {
+          recordCurrentSimulationFinalized();
+      }
+      var q = __assign(__assign({}, calc()), { id: uid('q'), historyEntryId: store.sim && store.sim.finalizedHistoryId, createdAt: new Date().toISOString() });
+      q = quoteProfitFields(q);
       store.quote.push(q);
-      // Salvar no histórico
-      if (!store.simulationHistory) store.simulationHistory = [];
-      store.simulationHistory.push(__assign(__assign({}, q), { addedToQuoteAt: new Date().toISOString() }));
+      markQuoteAddedInHistory(q);
       saveStore(false);
       toast('Serviço adicionado ao orçamento');
       render();
@@ -1027,15 +1097,12 @@ document.addEventListener('click', function (ev) {
       var quoteIndex = parseInt(btn.dataset.quoteIndex, 10);
       var editModal = document.getElementById('editQuoteModal');
       if (editModal && store.quote[quoteIndex]) {
-          var finalPriceInput = editModal.querySelector('[data-edit-field="finalPrice"]');
-          var totalCostInput = editModal.querySelector('[data-edit-field="totalCost"]');
-          if (finalPriceInput && totalCostInput) {
-              store.quote[quoteIndex].finalPrice = parseNum(finalPriceInput.value);
-              store.quote[quoteIndex].totalCost = parseNum(totalCostInput.value);
-              store.quote[quoteIndex].profit = store.quote[quoteIndex].finalPrice - store.quote[quoteIndex].totalCost;
-              store.quote[quoteIndex].margin = store.quote[quoteIndex].finalPrice ? store.quote[quoteIndex].profit / store.quote[quoteIndex].finalPrice : 0;
+          var edited = collectEditedQuote(editModal, store.quote[quoteIndex]);
+          if (edited) {
+              store.quote[quoteIndex] = edited;
+              updateHistoryFromQuote(edited);
               saveStore(false);
-              editModal.style.display = 'none';
+              editModal.classList.remove('show');
               renderQuoteScreen();
               toast('Orçamento atualizado');
           }
@@ -1043,7 +1110,25 @@ document.addEventListener('click', function (ev) {
   }
   if (action === 'closeEditModal') {
       var editModal = document.getElementById('editQuoteModal');
-      if (editModal) editModal.style.display = 'none';
+      if (editModal) editModal.classList.remove('show');
+  }
+  if (action === 'editQuoteAddProduct') {
+      var modal = document.getElementById('editQuoteModal');
+      if (modal) {
+          var list = modal.querySelector('[data-edit-product-list]');
+          if (list) {
+              list.insertAdjacentHTML('beforeend', editProductRowHtml({}, list.querySelectorAll('[data-edit-product-row]').length));
+              syncEditQuoteTotals(modal, true);
+          }
+      }
+  }
+  if (action === 'removeEditProduct') {
+      var row = btn.closest('[data-edit-product-row]');
+      var modal = btn.closest('#editQuoteModal');
+      if (row)
+          row.remove();
+      if (modal)
+          syncEditQuoteTotals(modal, true);
   }
   if (action === 'baseTab') {
       baseTab = btn.dataset.tab;
@@ -1125,7 +1210,8 @@ document.addEventListener('click', function (ev) {
   if (action === 'restoreDefaults') {
       if (confirm('Restaurar base original extraída da planilha?')) {
           var keepQuote = store.quote;
-          store = { data: clone(DEFAULT_DATA), quote: keepQuote, sim: defaultSimFromData(DEFAULT_DATA) };
+          var keepHistory = store.simulationHistory || [];
+          store = { data: clone(DEFAULT_DATA), quote: keepQuote, simulationHistory: keepHistory, sim: defaultSimFromData(DEFAULT_DATA) };
           saveStore(false);
           render();
           showScreen('base', false);
@@ -1192,6 +1278,13 @@ document.addEventListener('input', function (ev) {
       var idx = parseInt(card.dataset.productRow, 10);
       store.sim.products[idx].quantity = parseNum(el.value);
       saveStore(false);
+  }
+  if (el.closest('#editQuoteModal')) {
+      var modal = el.closest('#editQuoteModal');
+      if (el.matches('[data-edit-field="totalCost"]'))
+          modal.dataset.totalCostTouched = 'true';
+      if (el.matches('[data-edit-product-field], [data-edit-cost-component], [data-edit-field="finalPrice"], [data-edit-field="totalCost"]'))
+          syncEditQuoteTotals(modal, !el.matches('[data-edit-field="totalCost"]'));
   }
 });
 function updateBase(el) {
@@ -1297,11 +1390,99 @@ function renderHistoryScreen() {
   var history = store.simulationHistory || [];
   var historyHtml = history.length ? "<div class=\"quote-screen-list\">" + history.map(function (h, idx) { 
     var _a; 
-    return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (history.length - idx) + "</div><div><h3>" + esc(h.serviceName) + "</h3><div class=\"quote-meta\">" + esc(h.category) + " • " + esc((_a = h.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • " + new Date(h.addedToQuoteAt).toLocaleString('pt-BR') + "</div></div></div></div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(h.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(h.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(h.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(h.margin) + "</strong></div></div></div>"; 
+    var quoteBadge = h.quoteId || h.quoteAddedAt || h.addedToQuoteAt ? '<span class="tag">no orçamento</span>' : '<span class="tag">finalizada</span>';
+    return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">" + (history.length - idx) + "</div><div><h3>" + esc(h.serviceName) + "</h3><div class=\"quote-meta\">" + esc(h.category) + " • " + esc((_a = h.difficulty) === null || _a === void 0 ? void 0 : _a.name) + " • etapa 6 em " + historyMetaDate(h) + "</div></div></div>" + quoteBadge + "</div><div class=\"quote-values\"><div><span>A receber</span><strong>" + money(h.finalPrice) + "</strong></div><div><span>Gasto</span><strong>" + money(h.totalCost) + "</strong></div><div><span>Lucro</span><strong>" + money(h.profit) + "</strong></div><div><span>Margem</span><strong>" + percent(h.margin) + "</strong></div></div></div>"; 
   }).reverse().join('') + "</div>" : '<div class="empty">Nenhuma simulação no histórico ainda.</div>';
-  document.getElementById('screen-history').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Histórico de simulações</h2><p>Todas as simulações adicionadas ao orçamento acumulado.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"openQuote\">Voltar ao orçamento</button></div></div>" + historyHtml + "</section>";
+  document.getElementById('screen-history').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Histórico de simulações</h2><p>Todas as simulações que chegaram à etapa 6, inclusive as que não foram adicionadas ao orçamento acumulado.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"openQuote\">Voltar ao orçamento</button></div></div>" + historyHtml + "</section>";
 }
 
+function editProductRowHtml(p, idx) {
+  p = p || {};
+  var total = p.total !== undefined ? parseNum(p.total) : parseNum(p.quantity) * parseNum(p.unitCost);
+  return "<div class=\"edit-product-row\" data-edit-product-row=\"" + idx + "\"><div class=\"field product-name\"><label>Produto</label><input value=\"" + attr(p.name || '') + "\" data-edit-product-field=\"name\"></div><div class=\"field\"><label>Qtd.</label><input type=\"number\" step=\"0.01\" value=\"" + attr(p.quantity || 0) + "\" data-edit-product-field=\"quantity\"></div><div class=\"field\"><label>Unid.</label><input value=\"" + attr(p.unit || '') + "\" data-edit-product-field=\"unit\"></div><div class=\"field\"><label>Custo un.</label><input type=\"number\" step=\"0.0001\" value=\"" + attr(p.unitCost || 0) + "\" data-edit-product-field=\"unitCost\"></div><div class=\"field\"><label>Total</label><input type=\"number\" step=\"0.01\" value=\"" + attr(round2(total)) + "\" data-edit-product-field=\"total\"></div><button class=\"btn danger small\" type=\"button\" data-action=\"removeEditProduct\">Remover</button></div>";
+}
+function editTextValue(modal, field) {
+  var el = modal.querySelector('[data-edit-field="' + field + '"]');
+  return el ? el.value : '';
+}
+function editNumberValue(modal, field) {
+  return parseNum(editTextValue(modal, field));
+}
+function collectEditedProducts(modal) {
+  var rows = Array.prototype.slice.call(modal.querySelectorAll('[data-edit-product-row]'));
+  return rows.map(function (row) {
+      var get = function (name) {
+          var el = row.querySelector('[data-edit-product-field="' + name + '"]');
+          return el ? el.value : '';
+      };
+      var quantity = parseNum(get('quantity'));
+      var unitCost = parseNum(get('unitCost'));
+      var total = get('total') === '' ? quantity * unitCost : parseNum(get('total'));
+      return {
+          id: uid('prdedit'),
+          name: get('name'),
+          quantity: quantity,
+          unit: get('unit'),
+          unitCost: unitCost,
+          total: round2(total)
+      };
+  }).filter(function (p) { return p.name || p.quantity || p.total; });
+}
+function syncEditQuoteTotals(modal, updateTotalCost) {
+  if (!modal)
+      return;
+  Array.prototype.slice.call(modal.querySelectorAll('[data-edit-product-row]')).forEach(function (row) {
+      var q = parseNum((row.querySelector('[data-edit-product-field="quantity"]') || {}).value);
+      var unit = parseNum((row.querySelector('[data-edit-product-field="unitCost"]') || {}).value);
+      var totalEl = row.querySelector('[data-edit-product-field="total"]');
+      if (totalEl && document.activeElement !== totalEl)
+          totalEl.value = round2(q * unit);
+  });
+  var products = collectEditedProducts(modal);
+  var productTotal = round2(products.reduce(function (sum, p) { return sum + parseNum(p.total); }, 0));
+  var costProductsEl = modal.querySelector('[data-edit-field="costProducts"]');
+  if (costProductsEl)
+      costProductsEl.value = productTotal;
+  var totalCostEl = modal.querySelector('[data-edit-field="totalCost"]');
+  if (totalCostEl && updateTotalCost && modal.dataset.totalCostTouched !== 'true') {
+      totalCostEl.value = Math.ceil(editNumberValue(modal, 'costMechanic') + editNumberValue(modal, 'costFuel') + editNumberValue(modal, 'costMachine') + productTotal);
+  }
+  var finalPrice = editNumberValue(modal, 'finalPrice');
+  var totalCost = editNumberValue(modal, 'totalCost');
+  var profit = round2(finalPrice - totalCost);
+  var margin = finalPrice ? profit / finalPrice : 0;
+  var profitEl = modal.querySelector('[data-edit-preview="profit"]');
+  var marginEl = modal.querySelector('[data-edit-preview="margin"]');
+  if (profitEl)
+      profitEl.textContent = money(profit);
+  if (marginEl)
+      marginEl.textContent = percent(margin);
+}
+function collectEditedQuote(modal, original) {
+  var q = __assign({}, original);
+  q.serviceName = editTextValue(modal, 'serviceName') || q.serviceName;
+  q.category = editTextValue(modal, 'category');
+  q.item = editTextValue(modal, 'item');
+  q.typeSize = editTextValue(modal, 'typeSize');
+  q.porte = editTextValue(modal, 'porte');
+  q.baseValue = editNumberValue(modal, 'baseValue');
+  q.sizeFactor = editNumberValue(modal, 'sizeFactor');
+  q.difficultyFactor = editNumberValue(modal, 'difficultyFactor');
+  q.stageFactor = editNumberValue(modal, 'stageFactor');
+  q.difficulty = __assign(__assign({}, q.difficulty || {}), { name: editTextValue(modal, 'difficultyName') });
+  q.stages = editTextValue(modal, 'stagesText').split(/\n|,/).map(function (name) { return name.trim(); }).filter(Boolean).map(function (name) { return { name: name }; });
+  q.productDetails = collectEditedProducts(modal);
+  q.costMechanic = editNumberValue(modal, 'costMechanic');
+  q.costFuel = editNumberValue(modal, 'costFuel');
+  q.machineTimeLabel = editTextValue(modal, 'machineTimeLabel');
+  q.costMachine = editNumberValue(modal, 'costMachine');
+  q.costProducts = q.productDetails.length ? round2(q.productDetails.reduce(function (sum, p) { return sum + parseNum(p.total); }, 0)) : editNumberValue(modal, 'costProducts');
+  q.totalCost = editNumberValue(modal, 'totalCost');
+  q.finalPrice = editNumberValue(modal, 'finalPrice');
+  q.notes = editTextValue(modal, 'notes');
+  q.editedAt = new Date().toISOString();
+  return quoteProfitFields(q);
+}
 function showEditQuoteModal(quoteIndex) {
   var q = store.quote[quoteIndex];
   if (!q) return;
@@ -1313,11 +1494,15 @@ function showEditQuoteModal(quoteIndex) {
       document.body.appendChild(newModal);
       modal = newModal;
   }
-  modal.innerHTML = "<div class=\"modal-content\"><div class=\"modal-header\"><h2>Editar orçamento</h2><button type=\"button\" data-action=\"closeEditModal\" class=\"btn ghost\">✕</button></div><div class=\"modal-body\"><div class=\"form-grid\"><div class=\"field\"><label>Serviço</label><input readonly value=\"" + esc(q.serviceName) + "\"></div><div class=\"field\"><label>Valor a receber (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.finalPrice + "\" data-edit-field=\"finalPrice\"></div><div class=\"field\"><label>Custo total (R$)</label><input type=\"number\" step=\"0.01\" value=\"" + q.totalCost + "\" data-edit-field=\"totalCost\"></div></div></div><div class=\"modal-footer\"><button type=\"button\" data-action=\"closeEditModal\" class=\"btn secondary\">Cancelar</button><button type=\"button\" data-action=\"saveEditedQuote\" data-quote-index=\"" + quoteIndex + "\" class=\"btn\">Salvar</button></div></div>";
-  modal.style.display = 'flex';
+  modal.dataset.totalCostTouched = 'false';
+  var products = Array.isArray(q.productDetails) ? q.productDetails : [];
+  var stagesText = (q.stages || []).map(function (s) { return s.name || s; }).join('\n');
+  modal.innerHTML = "<div class=\"modal-content edit-quote-content\"><div class=\"modal-header\"><div><h2>Editar orçamento completo</h2><p>Altere serviço, etapas, produtos, custos e totais deste item acumulado.</p></div><button type=\"button\" data-action=\"closeEditModal\" class=\"btn ghost\">Fechar</button></div><div class=\"modal-body\"><div class=\"edit-section\"><h3>Serviço</h3><div class=\"form-grid three\"><div class=\"field\"><label>Nome do serviço</label><input value=\"" + attr(q.serviceName) + "\" data-edit-field=\"serviceName\"></div><div class=\"field\"><label>Categoria</label><input value=\"" + attr(q.category) + "\" data-edit-field=\"category\"></div><div class=\"field\"><label>Dificuldade</label><input value=\"" + attr((q.difficulty && q.difficulty.name) || '') + "\" data-edit-field=\"difficultyName\"></div><div class=\"field\"><label>Item</label><input value=\"" + attr(q.item) + "\" data-edit-field=\"item\"></div><div class=\"field\"><label>Tipo / tamanho</label><input value=\"" + attr(q.typeSize) + "\" data-edit-field=\"typeSize\"></div><div class=\"field\"><label>Porte</label><input value=\"" + attr(q.porte) + "\" data-edit-field=\"porte\"></div><div class=\"field\"><label>Valor base</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.baseValue) + "\" data-edit-field=\"baseValue\"></div><div class=\"field\"><label>Índice tamanho</label><input type=\"number\" step=\"0.0001\" value=\"" + attr(q.sizeFactor) + "\" data-edit-field=\"sizeFactor\"></div><div class=\"field\"><label>Fator dificuldade</label><input type=\"number\" step=\"0.0001\" value=\"" + attr(q.difficultyFactor) + "\" data-edit-field=\"difficultyFactor\"></div><div class=\"field\"><label>Fator etapas</label><input type=\"number\" step=\"0.0001\" value=\"" + attr(q.stageFactor) + "\" data-edit-field=\"stageFactor\"></div><div class=\"field textarea-field\"><label>Etapas executadas</label><textarea rows=\"4\" data-edit-field=\"stagesText\">" + esc(stagesText) + "</textarea></div></div></div><div class=\"edit-section\"><div class=\"section-head compact\"><div><h3>Produtos</h3><p>Adicione ou ajuste os produtos deste orçamento.</p></div><button class=\"btn secondary small\" type=\"button\" data-action=\"editQuoteAddProduct\">Adicionar produto</button></div><div class=\"edit-product-list\" data-edit-product-list>" + (products.length ? products.map(function (p, idx) { return editProductRowHtml(p, idx); }).join('') : editProductRowHtml({}, 0)) + "</div></div><div class=\"edit-section\"><h3>Custos e valores</h3><div class=\"form-grid three\"><div class=\"field\"><label>Custo mecânica</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.costMechanic) + "\" data-edit-field=\"costMechanic\" data-edit-cost-component></div><div class=\"field\"><label>Custo combustível</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.costFuel) + "\" data-edit-field=\"costFuel\" data-edit-cost-component></div><div class=\"field\"><label>Tempo máquina</label><input value=\"" + attr(q.machineTimeLabel || '') + "\" data-edit-field=\"machineTimeLabel\"></div><div class=\"field\"><label>Custo máquina</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.costMachine) + "\" data-edit-field=\"costMachine\" data-edit-cost-component></div><div class=\"field\"><label>Custo produtos</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.costProducts) + "\" data-edit-field=\"costProducts\" readonly></div><div class=\"field\"><label>Custo total</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.totalCost) + "\" data-edit-field=\"totalCost\"></div><div class=\"field\"><label>Valor a receber</label><input type=\"number\" step=\"0.01\" value=\"" + attr(q.finalPrice) + "\" data-edit-field=\"finalPrice\"></div><div class=\"kpi compact\"><span>Lucro recalculado</span><strong data-edit-preview=\"profit\">" + money(q.profit) + "</strong></div><div class=\"kpi compact\"><span>Margem recalculada</span><strong data-edit-preview=\"margin\">" + percent(q.margin) + "</strong></div><div class=\"field textarea-field\"><label>Observações</label><textarea rows=\"3\" data-edit-field=\"notes\">" + esc(q.notes || '') + "</textarea></div></div></div></div><div class=\"modal-footer\"><button type=\"button\" data-action=\"closeEditModal\" class=\"btn secondary\">Cancelar</button><button type=\"button\" data-action=\"saveEditedQuote\" data-quote-index=\"" + quoteIndex + "\" class=\"btn\">Salvar orçamento</button></div></div>";
+  modal.classList.add('show');
+  syncEditQuoteTotals(modal, false);
   // Fechar modal ao clicar fora
   modal.addEventListener('click', function (e) {
-      if (e.target === modal) modal.style.display = 'none';
+      if (e.target === modal) modal.classList.remove('show');
   });
 }
 

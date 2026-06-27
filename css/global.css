@@ -132,18 +132,23 @@ body{overflow-x:hidden}
   background: #fff;
   border-radius: 24px;
   box-shadow: 0 20px 60px rgba(8, 130, 145, 0.25);
-  max-width: 500px;
+  max-width: 980px;
   width: 100%;
-  max-height: 90vh;
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
+.edit-quote-content {
+  min-height: min(820px, calc(100vh - 32px));
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
   padding: 20px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
@@ -155,10 +160,68 @@ body{overflow-x:hidden}
   letter-spacing: -0.035em;
 }
 
+.modal-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.35;
+}
+
 .modal-body {
   padding: 20px;
   flex: 1;
   overflow-y: auto;
+}
+
+.edit-section {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 14px;
+  background: #FBFEFD;
+}
+
+.edit-section h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  letter-spacing: -.02em;
+}
+
+.section-head.compact {
+  margin-bottom: 10px;
+}
+
+.section-head.compact h3 {
+  margin: 0;
+}
+
+.textarea-field {
+  grid-column: 1 / -1;
+}
+
+.field textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.edit-product-list {
+  display: grid;
+  gap: 10px;
+}
+
+.edit-product-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(86px, .55fr) minmax(82px, .5fr) minmax(108px, .65fr) minmax(108px, .65fr) auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  padding: 12px;
+}
+
+.edit-product-row .btn {
+  align-self: end;
 }
 
 .modal-footer {
@@ -177,14 +240,18 @@ body{overflow-x:hidden}
 @media (max-width: 640px) {
   .modal {
     padding: 12px;
+    align-items: stretch;
   }
   
   .modal-content {
     border-radius: 20px;
+    max-height: calc(100vh - 24px);
   }
   
   .modal-header {
     padding: 16px;
+    align-items: stretch;
+    flex-direction: column;
   }
   
   .modal-body {
@@ -198,5 +265,14 @@ body{overflow-x:hidden}
   
   .modal-footer .btn {
     width: 100%;
+  }
+
+  .edit-product-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .edit-product-row .product-name,
+  .edit-product-row .btn {
+    grid-column: 1 / -1;
   }
 }
