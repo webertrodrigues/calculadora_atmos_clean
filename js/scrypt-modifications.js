@@ -5,6 +5,69 @@
 /**
  * Força a sobrescrita das funções globais, mesmo que o scrypt.js tente redeclará-las
  */
+const SAVE_DEBOUNCE_MS = 2000;
+const SAVE_MAX_WAIT_MS = 5000;
+let pendingSaveTimer = null;
+let pendingSaveStartedAt = 0;
+let pendingSaveShouldToast = false;
+let saveInProgress = false;
+
+function performCloudSave(show) {
+  if (typeof store === 'undefined') return;
+
+  try {
+    if (typeof normalizeSim === 'function') {
+      store.sim = normalizeSim(store.sim, store.data);
+    }
+
+    if (typeof setSave === 'function') setSave('☁️ salvando...', true);
+    saveInProgress = true;
+
+    saveToSupabase(store).then(success => {
+      saveInProgress = false;
+      if (success) {
+        if (typeof setSave === 'function') setSave('☁️ salvo na nuvem', true);
+        if (show && typeof toast === 'function') toast('Sincronizado com a nuvem');
+      } else {
+        if (typeof setSave === 'function') setSave('❌ erro ao salvar', false);
+      }
+    }).catch(e => {
+      saveInProgress = false;
+      console.error('Erro ao salvar na nuvem:', e);
+      if (typeof setSave === 'function') setSave('❌ erro ao salvar', false);
+    });
+  } catch (e) {
+    saveInProgress = false;
+    console.error('Erro ao salvar:', e);
+  }
+}
+
+function scheduleCloudSave(show) {
+  const now = Date.now();
+  pendingSaveShouldToast = pendingSaveShouldToast || !!show;
+
+  if (!pendingSaveStartedAt) {
+    pendingSaveStartedAt = now;
+  }
+
+  if (pendingSaveTimer) {
+    clearTimeout(pendingSaveTimer);
+  }
+
+  const elapsed = now - pendingSaveStartedAt;
+  const delay = Math.max(0, Math.min(SAVE_DEBOUNCE_MS, SAVE_MAX_WAIT_MS - elapsed));
+
+  if (typeof setSave === 'function') setSave('☁️ salvando em instantes...', true);
+
+  pendingSaveTimer = setTimeout(() => {
+    const shouldToast = pendingSaveShouldToast;
+    pendingSaveTimer = null;
+    pendingSaveStartedAt = 0;
+    pendingSaveShouldToast = false;
+    performCloudSave(shouldToast);
+  }, delay);
+}
+
 function applyOverrides() {
   console.log('🛠️ Aplicando overrides globais...');
   
@@ -12,24 +75,18 @@ function applyOverrides() {
     if (show === void 0) { show = true; }
     if (typeof store === 'undefined') return;
 
-    try {
-      if (typeof normalizeSim === 'function') {
-        store.sim = normalizeSim(store.sim, store.data);
-      }
-      
-      if (typeof setSave === 'function') setSave('☁️ salvando...', true);
-      
-      saveToSupabase(store).then(success => {
-        if (success) {
-          if (typeof setSave === 'function') setSave('☁️ salvo na nuvem', true);
-          if (show && typeof toast === 'function') toast('Sincronizado com a nuvem');
-        } else {
-          if (typeof setSave === 'function') setSave('❌ erro ao salvar', false);
-        }
-      });
-    } catch (e) {
-      console.error('Erro ao salvar:', e);
+    scheduleCloudSave(show);
+  };
+
+  window.flushPendingSave = function(show) {
+    if (pendingSaveTimer) {
+      clearTimeout(pendingSaveTimer);
+      pendingSaveTimer = null;
     }
+    const shouldToast = !!show || pendingSaveShouldToast;
+    pendingSaveStartedAt = 0;
+    pendingSaveShouldToast = false;
+    if (!saveInProgress) performCloudSave(shouldToast);
   };
 
   window.loadStore = function() {
