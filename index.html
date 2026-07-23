@@ -9,9 +9,11 @@
   
   <!-- 1. Supabase Client Library -->
   <script src="js/supabase.js"></script>
+  <script src="js/app-config.js"></script>
   
   <!-- 2. Funções de Integração com Supabase (Define as funções de salvar/carregar nuvem) -->
   <script src="js/supabase-integration.js"></script>
+  <script src="js/multi-service-engine.js"></script>
   
   <!-- 3. Script principal -->
   <script src="js/scrypt.js"></script>
@@ -45,12 +47,14 @@
           <p class="hero-text">Gerencie seus orçamentos com sincronização em tempo real.</p>
           <div class="choice-grid">
             <button class="choice" type="button" data-action="startWizard"><span class="icon">1</span><span><strong>Iniciar simulação</strong><span>Começar pela etapa de serviço.</span></span></button>
+            <button class="choice" type="button" data-action="startMultiWizard"><span class="icon">MS</span><span><strong>Simulação multisserviço</strong><span>Vários serviços com custos compartilhados.</span></span></button>
             <button class="choice" type="button" data-action="openBase"><span class="icon">BD</span><span><strong>Base de dados</strong><span>Serviços, produtos e regras.</span></span></button>
           </div>
         </div>
       </section>
     </section>
     <section id="screen-wizard" class="screen"></section>
+    <section id="screen-multi" class="screen"></section>
     <section id="screen-base" class="screen"></section>
     <section id="screen-rules" class="screen"></section>
     <section id="screen-quote" class="screen"></section>

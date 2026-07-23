@@ -31,6 +31,9 @@ yarn-error.log*
 dist/
 build/
 
+# Configuração local do app
+js/app-config.js
+
 # Arquivos temporários
 temp/
 tmp/
