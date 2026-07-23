@@ -547,9 +547,18 @@ var STEP_INFO = [
   ['Produtos', 'Produtos e quantidades'],
   ['Resumo', 'Adicionar ao orçamento']
 ];
+var STEP_INFO_MULTI = [
+  ['Serviços', 'Escolha vários serviços'],
+  ['Regras', 'Regras compartilhadas'],
+  ['Dificuldade', 'Cada serviço separadamente'],
+  ['Etapas', 'Etapas por serviço'],
+  ['Produtos', 'Produtos por serviço'],
+  ['Resumo', 'Fechar ou incluir mais um']
+];
 var store = loadStore();
 var currentScreen = 'home';
 var currentStep = 1;
+var currentFlow = (store && store.currentFlow) || 'single';
 var baseTab = 'servicos';
 var simulationHistory = [];
 var toastTimer = null;
@@ -647,7 +656,9 @@ function loadStore() {
     data: data, 
     simulationHistory: [],
     quote: [], 
-    sim: typeof defaultSimFromData === 'function' ? defaultSimFromData(data) : null 
+    sim: typeof defaultSimFromData === 'function' ? defaultSimFromData(data) : null,
+    currentFlow: 'single',
+    multiWizard: null
   };
 }
 function mergeData(data) {
@@ -750,7 +761,9 @@ function calc(inputSim) {
 function render() {
   renderHome();
   renderWizard();
-  renderMultiScreen();
+  if (currentScreen === 'multi') {
+      renderMultiScreen();
+  }
   renderBase();
   renderRules();
   renderQuoteScreen();
@@ -774,7 +787,7 @@ function renderHome() {
 function renderWizard() {
   var shell = document.getElementById('screen-wizard');
   var c = calc();
-  shell.innerHTML = "\n      <div class=\"wizard-shell\">\n        ".concat(progressHtml(), "\n        <div class=\"wizard-layout\">\n          <div class=\"wizard-main\">\n            <section class=\"step-card\">\n              ").concat(stepTitleHtml(), "\n              <div id=\"stepContent\">").concat(stepContentHtml(currentStep, c), "</div>\n              ").concat(wizardNavHtml(), "\n            </section>\n          </div>\n          <aside class=\"live-summary\">\n            <section class=\"step-card\">\n              <div class=\"section-head\"><div><h2>Resumo ao vivo</h2><p>Atualiza sozinho conforme voc\u00EA altera.</p></div></div>\n              ").concat(summaryHtml(c), "\n              <div class=\"divider\"></div>\n              ").concat(breakdownHtml(c), "\n            </section>\n          </aside>\n        </div>\n      </div>");
+  shell.innerHTML = "\n      <div class=\"wizard-shell\">\n        ".concat(progressHtml(), "\n        <div class=\"wizard-layout\">\n          <div class=\"wizard-main\">\n            <section class=\"step-card\">\n              ").concat(stepTitleHtml(), "\n              <div id=\"stepContent\">").concat(stepContentHtml(currentStep, c), "</div>\n              ").concat(wizardNavHtml(), "\n            </section>\n          </div>\n          <aside class=\"live-summary\">\n            <section class=\"step-card\">\n              <div class=\"section-head\"><div><h2>Resumo ao vivo</h2><p>Atualiza sozinho conforme voc\u00EA altera.</p></div></div>\n              ").concat(currentFlow === 'multi' ? multiWizardSidebarHtml() : summaryHtml(c) + '<div class=\"divider\"></div>' + breakdownHtml(c), "\n            </section>\n          </aside>\n        </div>\n      </div>");
 }
 function progressHtml() {
   var p = Math.round((currentStep / 6) * 100);
@@ -1002,6 +1015,193 @@ function multiMoney(cents) {
 }
 function multiPercent(value) {
   return percent(parseNum(value) || 0);
+}
+function ensureMultiWizardSession() {
+  if (!store.multiWizard || !Array.isArray(store.multiWizard.services)) {
+      store.multiWizard = {
+          id: uid('mw'),
+          createdAt: new Date().toISOString(),
+          services: []
+      };
+  }
+  if (!Array.isArray(store.multiWizard.services)) {
+      store.multiWizard.services = [];
+  }
+  return store.multiWizard;
+}
+function createMultiWizardServiceDraft(serviceId) {
+  var sim = defaultSimFromData(store.data);
+  sim.serviceId = serviceId || sim.serviceId;
+  sim = normalizeSim(sim, store.data);
+  sim.serviceId = serviceId || sim.serviceId;
+  return sim;
+}
+function multiWizardSelectedIds() {
+  return ensureMultiWizardSession().services.map(function (service) { return service.serviceId; });
+}
+function multiWizardActiveStepInfo() {
+  return currentFlow === 'multi' ? STEP_INFO_MULTI : STEP_INFO;
+}
+function multiWizardServiceLabel(sim) {
+  var service = (store.data.services || []).find(function (item) { return item && item.id === sim.serviceId; }) || {};
+  return serviceLabel(service) || 'Serviço';
+}
+function multiWizardServiceSelectionHtml() {
+  var session = ensureMultiWizardSession();
+  var selected = multiWizardSelectedIds();
+  var selectedCards = session.services.map(function (sim, index) {
+      return "<div class=\"rowline\"><span>".concat(index + 1, ". ").concat(esc(multiWizardServiceLabel(sim)), "</span><strong>").concat(money(calc(sim).finalPrice), "</strong></div>");
+  }).join('');
+  return "<div class=\"help\">Selecione os serviços que vão compor esta simulação. Depois você vai configurar dificuldade, etapas e produtos em paralelo.</div><div class=\"select-list\" style=\"margin-top:12px\">".concat(store.data.services.map(function (service) { return "<label class=\"option-card\"><input type=\"checkbox\" value=\"".concat(service.id, "\" data-multi-wizard-service-select ").concat(selected.indexOf(service.id) >= 0 ? 'checked' : '', "><span><strong>").concat(esc(serviceLabel(service)), "</strong><span>").concat(esc(service.category || ''), "</span></span></label>"); }).join(''), "</div><div class=\"divider\"></div><div class=\"section-head compact\"><div><h3>Serviços selecionados</h3><p>").concat(session.services.length, " serviço(s) na simulação.</p></div></div><div class=\"breakdown\">").concat(selectedCards || '<div class=\"empty compact\">Nenhum serviço selecionado ainda.</div>', "</div>");
+}
+function multiWizardRulesHtml() {
+  return "<div class=\"help\">Essas regras valem para todos os serviços selecionados nesta simulação.</div><div class=\"form-grid three\" style=\"margin-top:12px\">".concat(rulesFieldsHtml(), "</div>");
+}
+function multiWizardDifficultyHtml() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
+  return session.services.map(function (sim, index) {
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>Dificuldade do serviço</span></div></summary><div class=\"select-list\">").concat(store.data.difficulties.map(function (d) { return "<label class=\"option-card\"><input type=\"radio\" name=\"multi-difficulty-".concat(index, "\" value=\"").concat(d.id, "\" data-multi-field=\"difficultyId\" ").concat(d.id === sim.difficultyId ? 'checked' : '', "><span><strong>").concat(esc(d.name), "</strong><span>").concat(esc(d.situation || ''), "</span><span class=\"meta\"><span class=\"tag\">Peso ").concat(num(d.weight, 4), "</span></span></span></label>"); }).join(''), "</div></details>");
+  }).join('');
+}
+function multiWizardStagesHtml() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
+  return session.services.map(function (sim, index) {
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>Etapas do serviço</span></div></summary><div class=\"select-list\" style=\"margin-top:12px\">").concat(store.data.stages.map(function (st) { return "<label class=\"option-card\"><input type=\"checkbox\" value=\"".concat(st.id, "\" data-multi-stage-check ").concat(sim.stageIds.includes(st.id) ? 'checked' : '', "><span><strong>").concat(esc(st.name), "</strong><span class=\"meta\"><span class=\"tag\">Peso ").concat(num(st.weight, 4), "</span></span></span></label>"); }).join(''), "</div></details>");
+  }).join('');
+}
+function multiWizardProductsHtml() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
+  return session.services.map(function (sim, index) {
+      var rows = (sim.products || []).map(function (row, rowIndex) { return multiProductRowHtml(index, row, rowIndex); }).join('');
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>Produtos do serviço</span></div></summary><div class=\"multi-section-head\"><h4>Produtos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"product\">Adicionar</button></div><div class=\"multi-rows\">").concat(rows || '<div class="empty compact">Nenhum produto.</div>', "</div></details>");
+  }).join('');
+}
+function multiWizardSummaryTotals() {
+  var session = ensureMultiWizardSession();
+  return session.services.reduce(function (acc, sim) {
+      var c = calc(sim);
+      acc.serviceCount += 1;
+      acc.totalCost += c.totalCost;
+      acc.finalPrice += c.finalPrice;
+      acc.profit += c.profit;
+      return acc;
+  }, { serviceCount: 0, totalCost: 0, finalPrice: 0, profit: 0 });
+}
+function multiWizardSummaryHtml() {
+  var session = ensureMultiWizardSession();
+  var totals = multiWizardSummaryTotals();
+  var serviceCards = session.services.map(function (sim, index) {
+      var c = calc(sim);
+      return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">".concat(index + 1, "</div><div><h3>").concat(esc(multiWizardServiceLabel(sim)), "</h3><div class=\"quote-meta\">").concat(esc((store.data.difficulties.find(function (d) { return d.id === sim.difficultyId; }) || {}).name || ''), " \u2022 etapas: ").concat((sim.stageIds || []).map(function (id) { var stage = (store.data.stages || []).find(function (st) { return st.id === id; }); return stage ? esc(stage.name) : ''; }).filter(Boolean).join(', ') || 'nenhuma', "</div></div></div></div><div class=\"quote-values\"><div><span>A receber</span><strong>").concat(money(c.finalPrice), "</strong></div><div><span>Gasto</span><strong>").concat(money(c.totalCost), "</strong></div><div><span>Lucro</span><strong>").concat(money(c.profit), "</strong></div><div><span>Margem</span><strong>").concat(percent(c.margin), "</strong></div></div></div>");
+  }).join('');
+  return "<div class=\"summary-grid\"><div class=\"kpi main\"><span>Total a receber</span><strong>".concat(money(totals.finalPrice), "</strong></div><div class=\"kpi\"><span>Total de gastos</span><strong>").concat(money(totals.totalCost), "</strong></div><div class=\"kpi\"><span>Total de lucro</span><strong>").concat(money(totals.profit), "</strong></div><div class=\"kpi compact\"><span>Serviços</span><strong>").concat(totals.serviceCount, "</strong></div></div><div class=\"divider\"></div><div class=\"quote-screen-list\">").concat(serviceCards || '<div class="empty">Nenhum serviço selecionado.</div>', "</div>");
+}
+function multiWizardSidebarHtml() {
+  var session = ensureMultiWizardSession();
+  var totals = multiWizardSummaryTotals();
+  if (!session.services.length)
+      return '<div class="empty compact">Selecione serviços para ver o resumo paralelo aqui.</div>';
+  return "<div class=\"help\">".concat(session.services.length, " serviço(s) selecionado(s).").concat(currentFlow === 'multi' ? ' Você pode voltar e adicionar mais a qualquer momento.' : '', "</div><div class=\"breakdown\"><div class=\"rowline\"><span>Serviços selecionados</span><strong>").concat(session.services.length, "</strong></div><div class=\"rowline\"><span>Total a receber</span><strong>").concat(money(totals.finalPrice), "</strong></div><div class=\"rowline\"><span>Total de gastos</span><strong>").concat(money(totals.totalCost), "</strong></div><div class=\"rowline\"><span>Total de lucro</span><strong>").concat(money(totals.profit), "</strong></div></div>");
+}
+function multiWizardToggleService(serviceId, checked) {
+  var session = ensureMultiWizardSession();
+  var existsIndex = session.services.findIndex(function (sim) { return sim.serviceId === serviceId; });
+  if (checked && existsIndex < 0) {
+      session.services.push(createMultiWizardServiceDraft(serviceId));
+  }
+  if (!checked && existsIndex >= 0) {
+      session.services.splice(existsIndex, 1);
+  }
+  saveStore(false);
+}
+function multiWizardApplyFieldChange(el, shouldRender) {
+  if (shouldRender === void 0) { shouldRender = true; }
+  var session = ensureMultiWizardSession();
+  var serviceCard = el.closest('[data-multi-wizard-service-index]');
+  if (!serviceCard)
+      return;
+  var serviceIndex = parseInt(serviceCard.dataset.multiWizardServiceIndex, 10);
+  var sim = session.services[serviceIndex];
+  if (!sim)
+      return;
+  var value = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.matches('[data-multi-field="difficultyId"]')) {
+      sim.difficultyId = value;
+  }
+  else if (el.matches('[data-multi-stage-check]')) {
+      sim.stageIds = sim.stageIds || [];
+      if (el.checked && sim.stageIds.indexOf(value) < 0) {
+          sim.stageIds.push(value);
+      }
+      if (!el.checked) {
+          sim.stageIds = sim.stageIds.filter(function (id) { return id !== value; });
+      }
+  }
+  else if (el.matches('[data-multi-field]')) {
+      var rowCard = el.closest('[data-multi-row]');
+      var rowIndex = rowCard ? parseInt(rowCard.dataset.rowIndex, 10) : -1;
+      var rowKind = rowCard ? rowCard.dataset.multiRow : '';
+      if (rowCard && rowIndex >= 0) {
+          var row = sim[rowKind] && sim[rowKind][rowIndex];
+          if (row) {
+              if (el.dataset.multiField === 'productId')
+                  row.productId = value;
+              if (el.dataset.multiField === 'quantity')
+                  row.quantity = parseNum(value);
+              if (el.dataset.multiField === 'name')
+                  row.name = value;
+              if (el.dataset.multiField === 'unitCost')
+                  row.unitCostCents = Math.round(parseNum(value) * 100);
+              if (el.dataset.multiField === 'amount')
+                  row.amountCents = Math.round(parseNum(value) * 100);
+          }
+      }
+  }
+  sim = normalizeSim(sim, store.data);
+  session.services[serviceIndex] = sim;
+  saveStore(false);
+  if (shouldRender)
+      renderWizard();
+}
+function multiWizardAddRow(kind, serviceIndex) {
+  var session = ensureMultiWizardSession();
+  var sim = session.services[serviceIndex];
+  if (!sim)
+      return;
+  if (kind === 'product') {
+      sim.products = sim.products || [];
+      sim.products.push({ productId: (store.data.products[0] && store.data.products[0].id) || '', quantity: 0 });
+  }
+  sim = normalizeSim(sim, store.data);
+  session.services[serviceIndex] = sim;
+  saveStore(false);
+  renderWizard();
+}
+function multiWizardFinalize() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return;
+  session.services.forEach(function (sim) {
+      var q = quoteProfitFields(__assign(__assign({}, calc(sim)), { id: uid('q'), historyEntryId: store.sim && store.sim.finalizedHistoryId, createdAt: new Date().toISOString() }));
+      store.quote.push(q);
+      markQuoteAddedInHistory(q);
+  });
+  store.multiWizard = null;
+  currentFlow = 'single';
+  store.currentFlow = 'single';
+  store.sim = defaultSimFromData(store.data);
+  currentStep = 1;
+  saveStore(false);
+  render();
+  renderQuoteScreen();
+  showScreen('quote');
+  toast('Simulação multisserviço adicionada ao orçamento');
 }
 function multiServiceCatalogOptions(selectedId) {
   return store.data.services.map(function (service) {
@@ -1464,14 +1664,24 @@ document.addEventListener('click', function (ev) {
       renderHome();
   }
   if (action === 'startWizard') {
+      currentFlow = 'single';
+      store.currentFlow = 'single';
+      store.multiWizard = null;
       currentStep = 1;
+      store.sim = defaultSimFromData(store.data);
+      saveStore(false);
       renderWizard();
       showScreen('wizard');
   }
   if (action === 'startMultiWizard') {
-      ensureMultiSimulation();
-      renderMultiScreen();
-      showScreen('multi');
+      currentFlow = 'multi';
+      store.currentFlow = 'multi';
+      store.multiWizard = null;
+      ensureMultiWizardSession();
+      currentStep = 1;
+      saveStore(false);
+      renderWizard();
+      showScreen('wizard');
   }
   if (action === 'addMultiService') {
       multiAddService();
@@ -1539,7 +1749,7 @@ document.addEventListener('click', function (ev) {
   if (action === 'nextStep') {
       if (currentStep < 6) {
           currentStep++;
-          if (currentStep === 6) {
+          if (currentFlow !== 'multi' && currentStep === 6) {
               recordCurrentSimulationFinalized();
               saveStore(false);
           }
@@ -1556,7 +1766,7 @@ document.addEventListener('click', function (ev) {
   }
   if (action === 'step') {
       currentStep = parseInt(btn.dataset.step, 10);
-      if (currentStep === 6) {
+      if (currentFlow !== 'multi' && currentStep === 6) {
           recordCurrentSimulationFinalized();
           saveStore(false);
       }
@@ -1574,6 +1784,10 @@ document.addEventListener('click', function (ev) {
       renderWizard();
   }
   if (action === 'addQuote') {
+      if (currentFlow === 'multi') {
+          multiWizardFinalize();
+          return;
+      }
       if (currentStep === 6) {
           recordCurrentSimulationFinalized();
       }
@@ -1588,12 +1802,27 @@ document.addEventListener('click', function (ev) {
       showScreen('quote');
   }
   if (action === 'newSimulation') {
+      currentFlow = 'single';
+      store.currentFlow = 'single';
+      store.multiWizard = null;
       store.sim = defaultSimFromData(store.data);
       currentStep = 1;
       saveStore(false);
       renderWizard();
       toast('Nova simulação iniciada');
       showScreen('wizard');
+  }
+  if (action === 'multiAddMore') {
+      currentFlow = 'multi';
+      store.currentFlow = 'multi';
+      ensureMultiWizardSession();
+      currentStep = 1;
+      saveStore(false);
+      renderWizard();
+      showScreen('wizard');
+  }
+  if (action === 'multiFinalize') {
+      multiWizardFinalize();
   }
   if (action === 'clearQuote') {
       if (confirm('Limpar todos os serviços do orçamento acumulado?')) {
@@ -1755,6 +1984,16 @@ document.addEventListener('click', function (ev) {
 document.addEventListener('change', function (ev) {
   var _a;
   var el = ev.target;
+  if (currentFlow === 'multi' && el.closest('#screen-wizard') && el.matches('[data-multi-wizard-service-select]')) {
+      multiWizardToggleService(el.value, el.checked);
+      saveStore(false);
+      renderWizard();
+      return;
+  }
+  if (currentFlow === 'multi' && el.closest('#screen-wizard') && (el.matches('[data-multi-field]') || el.matches('[data-multi-stage-check]'))) {
+      multiWizardApplyFieldChange(el, true);
+      return;
+  }
   if (el.matches('[data-sim="serviceId"]')) {
       store.sim.serviceId = el.value;
       saveStore(false);
@@ -1801,6 +2040,10 @@ document.addEventListener('change', function (ev) {
 });
 document.addEventListener('input', function (ev) {
   var el = ev.target;
+  if (currentFlow === 'multi' && el.closest('#screen-wizard') && el.matches('[data-multi-field]')) {
+      multiWizardApplyFieldChange(el, false);
+      return;
+  }
   if (el.matches('[data-rule]')) {
       var ruleKey = el.dataset.rule;
       store.data.rules[ruleKey] = ruleKey === 'machineHours' ? el.value : parseNum(el.value);
@@ -2055,4 +2298,173 @@ function renderQuoteScreenWithHistory() {
   var totals = quoteTotals();
   var count = store.quote.length;
   document.getElementById('screen-quote').innerHTML = "<section class=\"panel\"><div class=\"section-head\"><div><h2>Orçamento acumulado</h2><p>Tela separada para acompanhar todos os serviços simulados antes de fechar com o cliente.</p></div><div class=\"actions\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"startWizard\">Simular mais</button><button class=\"btn secondary\" type=\"button\" data-action=\"openHistory\">Histórico</button></div></div>" + quoteSummaryHtml(totals, count) + "<div class=\"quote-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"newSimulation\">Nova simulação</button><button class=\"btn danger\" type=\"button\" data-action=\"clearQuote\">Limpar orçamento</button></div>" + (quoteHtmlWithEdit() || '') + "</section>";
+}
+function multiWizardServiceCount() {
+  var session = ensureMultiWizardSession();
+  return session.services.length || 0;
+}
+function multiWizardServiceCalc(sim, index, session) {
+  if (index === void 0) { index = 0; }
+  session = session || ensureMultiWizardSession();
+  var base = calc(sim);
+  var serviceCount = Math.max(1, (session.services && session.services.length) || 0);
+  var sharedRuleCostCents = Math.round((parseNum(base.costMechanic) + parseNum(base.costFuel) + parseNum(base.costMachine)) * 100);
+  var sharedShareCents = Math.floor(sharedRuleCostCents / serviceCount);
+  var sharedRemainder = sharedRuleCostCents % serviceCount;
+  var allocatedSharedRuleCostCents = sharedShareCents + (index < sharedRemainder ? 1 : 0);
+  var productCostCents = Math.round(parseNum(base.costProducts) * 100);
+  var totalCostCents = allocatedSharedRuleCostCents + productCostCents;
+  var finalPriceCents = Math.round(parseNum(base.finalPrice) * 100);
+  var profitCents = finalPriceCents - totalCostCents;
+  var finalPrice = finalPriceCents / 100;
+  var totalCost = totalCostCents / 100;
+  var profit = profitCents / 100;
+  var margin = finalPrice ? profit / finalPrice : 0;
+  var markup = totalCost ? finalPrice / totalCost : 0;
+  var status = profit < 0 ? 'PREJUÍZO' : (margin < 0.5 ? 'MARGEM BAIXA' : 'OK');
+  return __assign(__assign({}, base), { sharedRuleCostCents: sharedRuleCostCents, sharedRuleShareCents: allocatedSharedRuleCostCents, sharedRuleShare: allocatedSharedRuleCostCents / 100, totalCost: totalCost, finalPrice: finalPrice, profit: profit, margin: margin, markup: markup, status: status });
+}
+function multiWizardSharedRuleLabel() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return money(0);
+  var first = multiWizardServiceCalc(session.services[0], 0, session);
+  return money((first.sharedRuleCostCents || 0) / 100);
+}
+function progressHtml() {
+  var steps = multiWizardActiveStepInfo();
+  var p = Math.round((currentStep / 6) * 100);
+  return "<div class=\"progress-mobile\"><div class=\"top\"><span>Etapa ".concat(currentStep, " de 6</span><strong>").concat(steps[currentStep - 1][0], "</strong></div><div class=\"progress-track\"><div class=\"progress-bar\" style=\"width:").concat(p, "%\"></div></div></div>\n      <div class=\"stepper\">").concat(steps.map(function (s, i) { return "<button type=\"button\" class=\"step-pill ".concat(currentStep === i + 1 ? 'active' : currentStep > i + 1 ? 'done' : '', "\" data-action=\"step\" data-step=\"").concat(i + 1, "\"><span class=\"num\">").concat(i + 1, "</span><span class=\"label\"><strong>").concat(s[0], "</strong><small>").concat(s[1], "</small></span></button>"); }).join(''), "</div>");
+}
+function stepTitleHtml() {
+  var steps = multiWizardActiveStepInfo();
+  return "<div class=\"step-title\"><div class=\"bubble\">".concat(currentStep, "</div><div><h2>").concat(steps[currentStep - 1][0], "</h2><p>").concat(steps[currentStep - 1][1], "</p></div></div>");
+}
+function wizardNavHtml() {
+  if (currentFlow === 'multi' && currentStep === 6) {
+      return "<div class=\"wizard-nav\"><div class=\"left\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button><button class=\"btn secondary\" type=\"button\" data-action=\"prevStep\">Voltar</button></div><div class=\"right\"><button class=\"btn secondary\" type=\"button\" data-action=\"multiAddMore\">Adicionar mais um serviço</button><button class=\"btn\" type=\"button\" data-action=\"multiFinalize\">Finalizar simulação</button></div></div>";
+  }
+  return "<div class=\"wizard-nav\"><div class=\"left\"><button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button>".concat(currentStep > 1 ? '<button class="btn secondary" type="button" data-action="prevStep">Voltar</button>' : '', "</div><div class=\"right\">").concat(currentStep < 6 ? '<button class="btn" type="button" data-action="nextStep">Próximo</button>' : '<button class="btn" type="button" data-action="addQuote">Adicionar ao orçamento</button>', "</div></div>");
+}
+function stepContentHtml(step, c) {
+  if (currentFlow === 'multi') {
+      if (step === 1)
+          return multiWizardServiceSelectionHtml();
+      if (step === 2)
+          return multiWizardRulesHtml();
+      if (step === 3)
+          return multiWizardDifficultyHtml();
+      if (step === 4)
+          return multiWizardStagesHtml();
+      if (step === 5)
+          return multiWizardProductsHtml();
+      return multiWizardSummaryHtml();
+  }
+  if (step === 1)
+      return serviceStepHtml(c);
+  if (step === 2)
+      return rulesMiniHtml(c);
+  if (step === 3)
+      return difficultyStepHtml();
+  if (step === 4)
+      return stagesStepHtml(c);
+  if (step === 5)
+      return productsStepHtml(c);
+  return finalStepHtml(c);
+}
+function multiWizardServiceSelectionHtml() {
+  var session = ensureMultiWizardSession();
+  var selected = multiWizardSelectedIds();
+  var selectedCards = session.services.map(function (sim, index) {
+      var c = multiWizardServiceCalc(sim, index, session);
+      return "<div class=\"rowline\"><span>".concat(index + 1, ". ").concat(esc(multiWizardServiceLabel(sim)), "</span><strong>").concat(money(c.finalPrice), "</strong></div>");
+  }).join('');
+  return "<div class=\"help\">Selecione os serviços que vão compor esta simulação. Depois você vai configurar dificuldade, etapas e produtos em paralelo.</div><div class=\"select-list\" style=\"margin-top:12px\">".concat(store.data.services.map(function (service) { return "<label class=\"option-card\"><input type=\"checkbox\" value=\"".concat(service.id, "\" data-multi-wizard-service-select ").concat(selected.indexOf(service.id) >= 0 ? 'checked' : '', "><span><strong>").concat(esc(serviceLabel(service)), "</strong><span>").concat(esc(service.category || ''), "</span></span></label>"); }).join(''), "</div><div class=\"divider\"></div><div class=\"section-head compact\"><div><h3>Serviços selecionados</h3><p>").concat(session.services.length, " serviço(s) na simulação.</p></div></div><div class=\"breakdown\">").concat(selectedCards || '<div class="empty compact">Nenhum serviço selecionado ainda.</div>', "</div>");
+}
+function multiWizardRulesHtml() {
+  return "<div class=\"help\">Essas regras valem para todos os serviços selecionados nesta simulação. O custo de deslocamento e operação será dividido igualmente entre eles no fechamento.</div><div class=\"form-grid three\" style=\"margin-top:12px\">".concat(rulesFieldsHtml(), "</div><div class=\"divider\"></div><div class=\"breakdown\"><div class=\"rowline\"><span>Custo das regras</span><strong>").concat(multiWizardSharedRuleLabel(), "</strong></div><div class=\"rowline\"><span>Serviços na divisão</span><strong>").concat(multiWizardServiceCount(), "</strong></div></div>");
+}
+function multiWizardDifficultyHtml() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
+  return session.services.map(function (sim, index) {
+      var c = multiWizardServiceCalc(sim, index, session);
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat(money(c.finalPrice), "</span></div></summary><div class=\"select-list\">").concat(store.data.difficulties.map(function (d) { return "<label class=\"option-card\"><input type=\"radio\" name=\"multi-difficulty-".concat(index, "\" value=\"").concat(d.id, "\" data-multi-field=\"difficultyId\" ").concat(d.id === sim.difficultyId ? 'checked' : '', "><span><strong>").concat(esc(d.name), "</strong><span>").concat(esc(d.situation || ''), "</span><span class=\"meta\"><span class=\"tag\">Peso ").concat(num(d.weight, 4), "</span></span></span></label>"); }).join(''), "</div></details>");
+  }).join('');
+}
+function multiWizardStagesHtml() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
+  return session.services.map(function (sim, index) {
+      var c = multiWizardServiceCalc(sim, index, session);
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat(money(c.totalCost), " gasto</span></div></summary><div class=\"select-list\" style=\"margin-top:12px\">").concat(store.data.stages.map(function (st) { return "<label class=\"option-card\"><input type=\"checkbox\" value=\"".concat(st.id, "\" data-multi-stage-check ").concat(sim.stageIds.includes(st.id) ? 'checked' : '', "><span><strong>").concat(esc(st.name), "</strong><span class=\"meta\"><span class=\"tag\">Peso ").concat(num(st.weight, 4), "</span></span></span></label>"); }).join(''), "</div></details>");
+  }).join('');
+}
+function multiWizardProductsHtml() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
+  return session.services.map(function (sim, index) {
+      var rows = (sim.products || []).map(function (row, rowIndex) { return multiProductRowHtml(index, row, rowIndex); }).join('');
+      var c = multiWizardServiceCalc(sim, index, session);
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat(money(c.profit), " lucro</span></div></summary><div class=\"multi-section-head\"><h4>Produtos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"product\">Adicionar</button></div><div class=\"multi-rows\">").concat(rows || '<div class="empty compact">Nenhum produto.</div>', "</div></details>");
+  }).join('');
+}
+function multiWizardSummaryTotals() {
+  var session = ensureMultiWizardSession();
+  return session.services.reduce(function (acc, sim, index) {
+      var c = multiWizardServiceCalc(sim, index, session);
+      acc.serviceCount += 1;
+      acc.totalCost += c.totalCost;
+      acc.finalPrice += c.finalPrice;
+      acc.profit += c.profit;
+      acc.sharedRuleCost += c.sharedRuleShare || 0;
+      return acc;
+  }, { serviceCount: 0, totalCost: 0, finalPrice: 0, profit: 0, sharedRuleCost: 0 });
+}
+function multiWizardSummaryHtml() {
+  var session = ensureMultiWizardSession();
+  var totals = multiWizardSummaryTotals();
+  var serviceCards = session.services.map(function (sim, index) {
+      var c = multiWizardServiceCalc(sim, index, session);
+      var difficulty = (store.data.difficulties.find(function (d) { return d.id === sim.difficultyId; }) || {}).name || '';
+      var stages = (sim.stageIds || []).map(function (id) { var stage = (store.data.stages || []).find(function (st) { return st.id === id; }); return stage ? esc(stage.name) : ''; }).filter(Boolean).join(', ') || 'nenhuma';
+      return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">".concat(index + 1, "</div><div><h3>").concat(esc(multiWizardServiceLabel(sim)), "</h3><div class=\"quote-meta\">").concat(esc(difficulty), " • etapas: ").concat(stages, "</div></div></div></div><div class=\"quote-values\"><div><span>A receber</span><strong>").concat(money(c.finalPrice), "</strong></div><div><span>Regras rateadas</span><strong>").concat(money(c.sharedRuleShare), "</strong></div><div><span>Gasto</span><strong>").concat(money(c.totalCost), "</strong></div><div><span>Lucro</span><strong>").concat(money(c.profit), "</strong></div><div><span>Margem</span><strong>").concat(percent(c.margin), "</strong></div></div></div>");
+  }).join('');
+  return "<div class=\"summary-grid\"><div class=\"kpi main\"><span>Total a receber</span><strong>".concat(money(totals.finalPrice), "</strong></div><div class=\"kpi\"><span>Total de gastos</span><strong>").concat(money(totals.totalCost), "</strong></div><div class=\"kpi\"><span>Total de lucro</span><strong>").concat(money(totals.profit), "</strong></div><div class=\"kpi compact\"><span>Serviços</span><strong>").concat(totals.serviceCount, "</strong></div></div><div class=\"divider\"></div><div class=\"help\">As regras foram somadas uma vez e divididas igualmente entre os serviços selecionados.</div><div class=\"quote-screen-list\">").concat(serviceCards || '<div class="empty">Nenhum serviço selecionado.</div>', "</div><div class=\"quote-toolbar\"><button class=\"btn secondary\" type=\"button\" data-action=\"multiAddMore\">Adicionar mais um serviço</button><button class=\"btn\" type=\"button\" data-action=\"multiFinalize\">Finalizar simulação</button></div>");
+}
+function multiWizardSidebarHtml() {
+  var session = ensureMultiWizardSession();
+  var totals = multiWizardSummaryTotals();
+  if (!session.services.length)
+      return '<div class="empty compact">Selecione serviços para ver o resumo paralelo aqui.</div>';
+  return "<div class=\"help\">".concat(session.services.length, " serviço(s) selecionado(s).", currentFlow === 'multi' ? ' Você pode voltar e adicionar mais a qualquer momento.' : '', "</div><div class=\"breakdown\"><div class=\"rowline\"><span>Serviços selecionados</span><strong>").concat(session.services.length, "</strong></div><div class=\"rowline\"><span>Regras rateadas</span><strong>").concat(money(totals.sharedRuleCost), "</strong></div><div class=\"rowline\"><span>Total a receber</span><strong>").concat(money(totals.finalPrice), "</strong></div><div class=\"rowline\"><span>Total de gastos</span><strong>").concat(money(totals.totalCost), "</strong></div><div class=\"rowline\"><span>Total de lucro</span><strong>").concat(money(totals.profit), "</strong></div></div>");
+}
+function multiWizardFinalize() {
+  var session = ensureMultiWizardSession();
+  if (!session.services.length)
+      return;
+  var now = new Date().toISOString();
+  var history = ensureSimulationHistory();
+  session.services.forEach(function (sim, index) {
+      var calcState = multiWizardServiceCalc(sim, index, session);
+      var historyId = uid('hist');
+      var snapshot = quoteProfitFields(__assign(__assign({}, calcState), { id: historyId, finalizedAt: now, updatedAt: now, origin: 'finalizacao-multi', multiWizardId: session.id }));
+      history.push(snapshot);
+      var q = quoteProfitFields(__assign(__assign({}, calcState), { id: uid('q'), historyEntryId: historyId, createdAt: now, multiWizardId: session.id }));
+      store.quote.push(q);
+      markQuoteAddedInHistory(q);
+  });
+  store.multiWizard = null;
+  currentFlow = 'single';
+  store.currentFlow = 'single';
+  store.sim = defaultSimFromData(store.data);
+  currentStep = 1;
+  saveStore(false);
+  render();
+  renderQuoteScreen();
+  showScreen('quote');
+  toast('Simulação multisserviço adicionada ao orçamento');
 }

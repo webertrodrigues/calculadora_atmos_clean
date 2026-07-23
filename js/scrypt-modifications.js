@@ -102,7 +102,9 @@ function applyOverrides() {
       simulationHistory: [],
       quote: [], 
       sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] },
-      multi: null
+      multi: null,
+      currentFlow: 'single',
+      multiWizard: null
     };
   };
 }
@@ -146,6 +148,9 @@ async function forceSyncFromCloud() {
         if (cloudData.quote) store.quote = Array.isArray(cloudData.quote) ? cloudData.quote : [];
         store.simulationHistory = Array.isArray(cloudData.simulationHistory) ? cloudData.simulationHistory : [];
         if (cloudData.sim) store.sim = cloudData.sim;
+        store.currentFlow = cloudData.currentFlow || 'single';
+        store.multiWizard = cloudData.multiWizard || null;
+        if (typeof currentFlow !== 'undefined') currentFlow = store.currentFlow || 'single';
         if (cloudData.multi && typeof normalizeMultiSimulation === 'function') {
           store.multi = normalizeMultiSimulation(cloudData.multi, store.data);
         } else if (cloudData.multi) {
@@ -174,6 +179,9 @@ async function forceSyncFromCloud() {
       if (store.multi && typeof normalizeMultiSimulation === 'function') {
         store.multi = normalizeMultiSimulation(store.multi, store.data);
       }
+      store.currentFlow = store.currentFlow || 'single';
+      store.multiWizard = store.multiWizard || null;
+      if (typeof currentFlow !== 'undefined') currentFlow = store.currentFlow || 'single';
       
       if (typeof render === 'function') render();
       if (typeof setSave === 'function') setSave('☁️ nuvem ativa', true);
@@ -190,6 +198,9 @@ async function forceSyncFromCloud() {
       if (newData.quote) store.quote = Array.isArray(newData.quote) ? newData.quote : [];
       store.simulationHistory = Array.isArray(newData.simulationHistory) ? newData.simulationHistory : [];
       if (newData.sim) store.sim = newData.sim;
+      store.currentFlow = newData.currentFlow || store.currentFlow || 'single';
+      store.multiWizard = newData.multiWizard || store.multiWizard || null;
+      if (typeof currentFlow !== 'undefined') currentFlow = store.currentFlow || 'single';
       if (newData.multi && typeof normalizeMultiSimulation === 'function') {
         store.multi = normalizeMultiSimulation(newData.multi, store.data);
       } else if (newData.multi) {
