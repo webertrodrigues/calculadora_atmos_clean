@@ -750,6 +750,7 @@ function calc(inputSim) {
 function render() {
   renderHome();
   renderWizard();
+  renderMultiScreen();
   renderBase();
   renderRules();
   renderQuoteScreen();
@@ -768,7 +769,7 @@ function showScreen(name, scroll) {
 function renderHome() {
   var c = calc();
   var totals = quoteTotals();
-  document.getElementById('screen-home').innerHTML = "\n      <div class=\"hero\">\n        <section class=\"panel\">\n          <span class=\"tag\">Fluxo guiado \u2022 Mobile first</span>\n          <h2 class=\"hero-title\">Precifique sem perder custo no caminho.</h2>\n          <p class=\"hero-text\">Selecione o servi\u00E7o, ajuste regras, dificuldade, etapas e produtos. No final, adicione ao or\u00E7amento acumulado. A base e as regras ficam salvas neste navegador.</p>\n          <div class=\"choice-grid\">\n            <button class=\"choice\" type=\"button\" data-action=\"startWizard\"><span class=\"icon\">1</span><span><strong>Iniciar simula\u00E7\u00E3o</strong><span>Fluxo em etapas com c\u00E1lculo autom\u00E1tico.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"openBase\"><span class=\"icon\">BD</span><span><strong>Base de dados</strong><span>Cadastrar servi\u00E7os, produtos, categorias e pesos.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"openRules\"><span class=\"icon\">R</span><span><strong>Regras fixas</strong><span>Deslocamento, combust\u00EDvel, m\u00E1quina e taxas.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"openQuote\"><span class=\"icon\">\u03A3</span><span><strong>Ver or\u00E7amento</strong><span>".concat(store.quote.length, " servi\u00E7o(s) acumulado(s).</span></span></button>\n          </div>\n        </section>\n        <aside class=\"panel\">\n          <div class=\"section-head\"><div><h2>Resumo atual</h2><p>Simula\u00E7\u00E3o que est\u00E1 em aberto agora.</p></div></div>\n          ").concat(summaryHtml(c), "\n          <div class=\"sticky-total\"><div><small>Total acumulado</small><strong>").concat(money(totals.finalPrice), "</strong></div><button class=\"btn small secondary\" type=\"button\" data-action=\"openQuote\">Abrir</button></div>\n        </aside>\n      </div>");
+  document.getElementById('screen-home').innerHTML = "\n      <div class=\"hero\">\n        <section class=\"panel\">\n          <span class=\"tag\">Fluxo guiado \u2022 Mobile first</span>\n          <h2 class=\"hero-title\">Precifique sem perder custo no caminho.</h2>\n          <p class=\"hero-text\">Selecione o servi\u00E7o, ajuste regras, dificuldade, etapas e produtos. No final, adicione ao or\u00E7amento acumulado. A base e as regras ficam salvas neste navegador.</p>\n          <div class=\"choice-grid\">\n            <button class=\"choice\" type=\"button\" data-action=\"startWizard\"><span class=\"icon\">1</span><span><strong>Iniciar simula\u00E7\u00E3o</strong><span>Fluxo em etapas com c\u00E1lculo autom\u00E1tico.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"startMultiWizard\"><span class=\"icon\">MS</span><span><strong>Simula\u00E7\u00E3o multisservi\u00E7o</strong><span>Servi\u00E7os com custos compartilhados por grupo.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"openBase\"><span class=\"icon\">BD</span><span><strong>Base de dados</strong><span>Cadastrar servi\u00E7os, produtos, categorias e pesos.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"openRules\"><span class=\"icon\">R</span><span><strong>Regras fixas</strong><span>Deslocamento, combust\u00EDvel, m\u00E1quina e taxas.</span></span></button>\n            <button class=\"choice\" type=\"button\" data-action=\"openQuote\"><span class=\"icon\">\u03A3</span><span><strong>Ver or\u00E7amento</strong><span>".concat(store.quote.length, " servi\u00E7o(s) acumulado(s).</span></span></button>\n          </div>\n        </section>\n        <aside class=\"panel\">\n          <div class=\"section-head\"><div><h2>Resumo atual</h2><p>Simula\u00E7\u00E3o que est\u00E1 em aberto agora.</p></div></div>\n          ").concat(summaryHtml(c), "\n          <div class=\"sticky-total\"><div><small>Total acumulado</small><strong>").concat(money(totals.finalPrice), "</strong></div><button class=\"btn small secondary\" type=\"button\" data-action=\"openQuote\">Abrir</button></div>\n        </aside>\n      </div>");
 }
 function renderWizard() {
   var shell = document.getElementById('screen-wizard');
@@ -979,6 +980,479 @@ function quoteHtml() {
       return '<div class="empty">Nenhum serviço acumulado ainda. Clique em “Simular mais”, configure um serviço e adicione ao orçamento.</div>';
   return "<div class=\"quote-screen-list\">".concat(store.quote.map(function (q, idx) { var _a; return "<div class=\"quote-card\"><div class=\"quote-head\"><div class=\"quote-head-main\"><div class=\"quote-card-number\">".concat(idx + 1, "</div><div><h3>").concat(esc(q.serviceName), "</h3><div class=\"quote-meta\">").concat(esc(q.category), " \u2022 ").concat(esc(((_a = q.difficulty) === null || _a === void 0 ? void 0 : _a.name) || ''), " \u2022 etapas: ").concat((q.stages || []).map(function (s) { return esc(s.name); }).join(', ') || 'nenhuma', "</div></div></div><button class=\"btn danger small\" type=\"button\" data-action=\"removeQuote\" data-index=\"").concat(idx, "\">Remover</button></div><div class=\"quote-values\"><div><span>A receber</span><strong>").concat(money(q.finalPrice), "</strong></div><div><span>Gasto</span><strong>").concat(money(q.totalCost), "</strong></div><div><span>Lucro</span><strong>").concat(money(q.profit), "</strong></div><div><span>Margem</span><strong>").concat(percent(q.margin), "</strong></div></div></div>"); }).join(''), "</div>");
 }
+function ensureMultiSimulation() {
+  if (typeof store === 'undefined')
+      return null;
+  if (!store.multi && typeof createDefaultMultiSimulation === 'function') {
+      store.multi = createDefaultMultiSimulation(store.data);
+  }
+  if (store.multi && typeof normalizeMultiSimulation === 'function') {
+      store.multi = normalizeMultiSimulation(store.multi, store.data);
+  }
+  return store.multi;
+}
+function multiCalcState() {
+  var multi = ensureMultiSimulation();
+  if (!multi || typeof calculateMultiServiceSimulation !== 'function')
+      return null;
+  return calculateMultiServiceSimulation(multi, store.data);
+}
+function multiMoney(cents) {
+  return money((parseNum(cents) || 0) / 100);
+}
+function multiPercent(value) {
+  return percent(parseNum(value) || 0);
+}
+function multiServiceCatalogOptions(selectedId) {
+  return store.data.services.map(function (service) {
+      return "<option value=\"".concat(service.id, "\" ").concat(service.id === selectedId ? 'selected' : '', ">").concat(esc(serviceLabel(service)), "</option>");
+  }).join('');
+}
+function multiDifficultyOptions(selectedId) {
+  return store.data.difficulties.map(function (difficulty) {
+      return "<option value=\"".concat(difficulty.id, "\" ").concat(difficulty.id === selectedId ? 'selected' : '', ">").concat(esc(difficulty.name), "</option>");
+  }).join('');
+}
+function multiGroupOptions(selectedId) {
+  var multi = ensureMultiSimulation();
+  return (multi.executionGroups || []).map(function (group) {
+      return "<option value=\"".concat(group.id, "\" ").concat(group.id === selectedId ? 'selected' : '', ">").concat(esc(group.name), "</option>");
+  }).join('');
+}
+function multiProductOptions(selectedId) {
+  return store.data.products.map(function (product) {
+      return "<option value=\"".concat(product.id, "\" ").concat(product.id === selectedId ? 'selected' : '', ">").concat(esc(product.name), "</option>");
+  }).join('');
+}
+function multiGroupServiceNames(group, multi) {
+  var ids = group.serviceIds || [];
+  return ids.map(function (id) {
+      var service = (multi.services || []).find(function (item) { return item.id === id; });
+      return service ? esc(service.name || 'Serviço') : '';
+  }).filter(Boolean).join(', ');
+}
+function multiProductRowHtml(serviceIndex, row, rowIndex) {
+  row = row || {};
+  return "<div class=\"multi-row-grid\" data-multi-row=\"product\" data-service-index=\"".concat(serviceIndex, "\" data-row-index=\"").concat(rowIndex, "\">\n      <div class=\"field\"><label>Produto</label><select data-multi-field=\"productId\">").concat(multiProductOptions(row.productId), "</select></div>\n      <div class=\"field\"><label>Quantidade</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(attr(row.quantity || 0), "\" data-multi-field=\"quantity\"></div>\n      <button class=\"btn danger small\" type=\"button\" data-action=\"removeMultiRow\" data-kind=\"product\">Remover</button>\n    </div>");
+}
+function multiGenericRowHtml(serviceIndex, kind, row, rowIndex) {
+  row = row || {};
+  var label = kind === 'processes' ? 'Processo' : (kind === 'labor' ? 'Mão de obra' : 'Equipamento');
+  var quantityLabel = kind === 'labor' ? 'Horas' : 'Qtd./Horas';
+  return "<div class=\"multi-row-grid\" data-multi-row=\"".concat(kind, "\" data-service-index=\"").concat(serviceIndex, "\" data-row-index=\"").concat(rowIndex, "\">\n      <div class=\"field\"><label>").concat(label, "</label><input value=\"").concat(attr(row.name || ''), "\" data-multi-field=\"name\"></div>\n      <div class=\"field\"><label>").concat(quantityLabel, "</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(attr(row.quantity || 0), "\" data-multi-field=\"quantity\"></div>\n      <div class=\"field\"><label>Valor un.</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(attr((row.unitCostCents || 0) / 100), "\" data-multi-field=\"unitCost\"></div>\n      <div class=\"field\"><label>Total</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(attr((row.totalCostCents || 0) / 100), "\" data-multi-field=\"total\" readonly></div>\n      <button class=\"btn danger small\" type=\"button\" data-action=\"removeMultiRow\" data-kind=\"").concat(kind, "\">Remover</button>\n    </div>");
+}
+function multiExclusiveRowHtml(serviceIndex, row, rowIndex) {
+  row = row || {};
+  return "<div class=\"multi-row-grid\" data-multi-row=\"exclusiveCosts\" data-service-index=\"".concat(serviceIndex, "\" data-row-index=\"").concat(rowIndex, "\">\n      <div class=\"field\"><label>Nome</label><input value=\"").concat(attr(row.name || ''), "\" data-multi-field=\"name\"></div>\n      <div class=\"field\"><label>Valor</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(attr((row.amountCents || 0) / 100), "\" data-multi-field=\"amount\"></div>\n      <button class=\"btn danger small\" type=\"button\" data-action=\"removeMultiRow\" data-kind=\"exclusiveCosts\">Remover</button>\n    </div>");
+}
+function sharedCostCategoryOptions(selected) {
+  var categories = [
+      ['transport', 'Deslocamento'],
+      ['fuel', 'Combustível'],
+      ['toll', 'Pedágio'],
+      ['parking', 'Estacionamento'],
+      ['mobilization', 'Mobilização'],
+      ['machine', 'Maquinário'],
+      ['team', 'Equipe'],
+      ['lodging', 'Hospedagem'],
+      ['food', 'Alimentação'],
+      ['fee', 'Taxa'],
+      ['other', 'Outros']
+  ];
+  return categories.map(function (item) {
+      return "<option value=\"".concat(item[0], "\" ").concat(item[0] === selected ? 'selected' : '', ">").concat(item[1], "</option>");
+  }).join('');
+}
+function sharedCostMethodOptions(selected) {
+  var methods = [
+      ['proportional_direct_cost', 'Proporcional ao custo direto'],
+      ['equal', 'Divisão igual'],
+      ['proportional_sale_price', 'Proporcional ao preço de venda'],
+      ['proportional_quantity', 'Proporcional à quantidade'],
+      ['manual_percent', 'Rateio manual percentual'],
+      ['manual_value', 'Rateio manual monetário'],
+      ['none', 'Sem rateio']
+  ];
+  return methods.map(function (item) {
+      return "<option value=\"".concat(item[0], "\" ").concat(item[0] === selected ? 'selected' : '', ">").concat(item[1], "</option>");
+  }).join('');
+}
+function sharedCalculationTypeOptions(selected) {
+  var types = [
+      ['fixed', 'Valor fixo'],
+      ['quantity_unit', 'Quantidade × valor unitário'],
+      ['hours', 'Horas × valor por hora'],
+      ['days', 'Dias × valor por dia'],
+      ['kilometers', 'Quilômetros × valor por km'],
+      ['manual', 'Valor manual']
+  ];
+  return types.map(function (item) {
+      return "<option value=\"".concat(item[0], "\" ").concat(item[0] === selected ? 'selected' : '', ">").concat(item[1], "</option>");
+  }).join('');
+}
+function multiManualAllocationsHtml(sharedCost, group) {
+  if (sharedCost.allocationMethod !== 'manual_percent' && sharedCost.allocationMethod !== 'manual_value')
+      return '';
+  var multi = ensureMultiSimulation();
+  var serviceIds = group.serviceIds || [];
+  if (!serviceIds.length)
+      return '<div class="help">Esse grupo não tem serviços para rateio manual.</div>';
+  return "<div class=\"multi-manual-box\">".concat(serviceIds.map(function (serviceId) {
+      var service = (multi.services || []).find(function (item) { return item.id === serviceId; }) || {};
+      var allocation = (sharedCost.manualAllocations || []).find(function (item) { return item.serviceId === serviceId; }) || {};
+      return "<div class=\"field\"><label>".concat(esc(service.name || 'Serviço'), "</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(sharedCost.allocationMethod === 'manual_percent' ? attr(allocation.percent || 0) : attr((allocation.amountCents || 0) / 100), "\" data-multi-field=\"manualAllocation\" data-service-id=\"").concat(serviceId, "\"><span class=\"hint\">").concat(sharedCost.allocationMethod === 'manual_percent' ? 'Percentual' : 'Valor monetário', "</span></div>");
+  }).join(''), "</div>");
+}
+function multiGroupCardHtml(group, groupIndex, multi) {
+  var sharedCosts = group.sharedCosts || [];
+  return "<details class=\"data-card multi-group-card\" open data-group-index=\"".concat(groupIndex, "\">\n      <summary><div class=\"summary-line\"><strong>").concat(esc(group.name || 'Grupo'), "</strong><span>").concat(group.serviceIds.length, " serviço(s)</span></div></summary>\n      <div class=\"form-grid three\">\n        <div class=\"field\"><label>Nome do grupo</label><input value=\"").concat(attr(group.name || ''), "\" data-multi-field=\"groupName\"></div>\n        <div class=\"field\"><label>Endereço</label><input value=\"").concat(attr(group.address || ''), "\" data-multi-field=\"groupAddress\"></div>\n        <div class=\"field\"><label>Data</label><input type=\"date\" value=\"").concat(attr(group.executionDate || ''), "\" data-multi-field=\"groupDate\"></div>\n      </div>\n      <div class=\"help\">Serviços do grupo: ").concat(multiGroupServiceNames(group, multi) || 'nenhum', "</div>\n      <div class=\"multi-section-head\"><h4>Custos compartilhados</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addSharedCost\">Adicionar custo</button></div>\n      <div class=\"multi-shared-list\">").concat(sharedCosts.map(function (sharedCost, sharedIndex) { return multiSharedCostHtml(group, sharedCost, groupIndex, sharedIndex); }).join('') || '<div class=\"empty compact\">Nenhum custo compartilhado.</div>', "</div>\n      <div class=\"multi-section-foot\">\n        <button class=\"btn danger small\" type=\"button\" data-action=\"removeGroup\">Remover grupo</button>\n      </div>\n    </details>");
+}
+function renderMultiScreen() {
+  var shell = document.getElementById('screen-multi');
+  if (!shell)
+      return;
+  var multi = ensureMultiSimulation();
+  if (!multi) {
+      shell.innerHTML = '<section class="panel"><div class="empty">Não foi possível carregar a simulação multisserviço.</div></section>';
+      return;
+  }
+  var calcState = multiCalcState();
+  var validation = typeof validateMultiServiceSimulation === 'function' ? validateMultiServiceSimulation(multi, store.data, calcState || undefined) : { valid: true, blocking: [], warnings: [] };
+  var serviceRows = calcState ? calcState.serviceRows : [];
+  var groupRows = calcState ? calcState.groupRows : [];
+  var summary = calcState ? calcState.summary : { serviceCount: multi.services.length, groupCount: multi.executionGroups.length, totalDirectCostCents: 0, totalSharedCostCents: 0, totalCostCents: 0, totalSalePriceCents: 0, totalProfitCents: 0, marginPercentage: 0 };
+  var warningHtml = validation.blocking.length ? '<div class="help">' + validation.blocking.map(function (msg) { return esc(msg); }).join('<br>') + '</div>' : (validation.warnings.length ? '<div class="help">' + validation.warnings.map(function (msg) { return esc(msg); }).join('<br>') + '</div>' : '');
+  var serviceCards = (multi.services || []).map(function (service, index) {
+      var calcRow = serviceRows[index] || {};
+      return multiServiceCardHtml(service, calcRow, index, multi);
+  }).join('');
+  var groupCards = (multi.executionGroups || []).map(function (group, index) {
+      return multiGroupCardHtml(group, index, multi);
+  }).join('');
+  var groupCheckRows = (groupRows || []).map(function (groupRow) {
+      return "<div class=\"rowline\"><span>".concat(esc(groupRow.name || 'Grupo'), "</span><strong>").concat(multiMoney(groupRow.sharedCostTotalCents || 0), "</strong></div>");
+  }).join('');
+  shell.innerHTML = "\n      <section class=\"panel multi-screen\">\n        <div class=\"section-head\">\n          <div><h2>Simulação multisserviço</h2><p>Serviços distintos em um único orçamento, com custos compartilhados por grupo de execução.</p></div>\n          <div class=\"actions\">\n            <button class=\"btn ghost\" type=\"button\" data-action=\"home\">Início</button>\n            <button class=\"btn secondary\" type=\"button\" data-action=\"addMultiService\">Adicionar serviço</button>\n            <button class=\"btn secondary\" type=\"button\" data-action=\"addMultiGroup\">Adicionar grupo</button>\n          </div>\n        </div>\n        <div class=\"multi-summary-grid\">\n          <div class=\"kpi\"><span>Serviços</span><strong>".concat(summary.serviceCount, "</strong></div>\n          <div class=\"kpi\"><span>Grupos</span><strong>").concat(summary.groupCount, "</strong></div>\n          <div class=\"kpi\"><span>Custo direto</span><strong>").concat(multiMoney(summary.totalDirectCostCents), "</strong></div>\n          <div class=\"kpi\"><span>Custo compartilhado</span><strong>").concat(multiMoney(summary.totalSharedCostCents), "</strong></div>\n          <div class=\"kpi\"><span>Custo consolidado</span><strong>").concat(multiMoney(summary.totalCostCents), "</strong></div>\n          <div class=\"kpi\"><span>Preço total</span><strong>").concat(multiMoney(summary.totalSalePriceCents), "</strong></div>\n          <div class=\"kpi\"><span>Lucro</span><strong>").concat(multiMoney(summary.totalProfitCents), "</strong></div>\n          <div class=\"kpi\"><span>Margem</span><strong>").concat(percent(summary.marginPercentage || 0), "</strong></div>\n        </div>\n        ").concat(warningHtml, "\n        <div class=\"multi-layout\">\n          <div class=\"multi-main\">\n            <div class=\"section-head compact\"><div><h3>Serviços</h3><p>Cada card mantém sua composição própria.</p></div></div>\n            <div class=\"multi-list\">").concat(serviceCards || '<div class="empty">Nenhum serviço.</div>', "</div>\n          </div>\n          <aside class=\"multi-side\">\n            <div class=\"section-head compact\"><div><h3>Grupos de execução</h3><p>Custos compartilhados e rateio interno.</p></div></div>\n            <div class=\"multi-list\">").concat(groupCards || '<div class="empty">Nenhum grupo.</div>', "</div>\n            <div class=\"divider\"></div>\n            <div class=\"section-head compact\"><div><h3>Conferência</h3></div></div>\n            <div class=\"multi-checklist\">").concat(groupCheckRows || '<div class="empty compact">Sem grupos calculados.</div>', "</div>\n          </aside>\n        </div>\n      </section>");
+}
+function multiServiceCardHtml(service, calcRow, serviceIndex, multi) {
+  var productRows = (service.products || []).map(function (row, index) { return multiProductRowHtml(serviceIndex, row, index); }).join('');
+  var processRows = (service.processes || []).map(function (row, index) { return multiGenericRowHtml(serviceIndex, 'processes', row, index); }).join('');
+  var laborRows = (service.labor || []).map(function (row, index) { return multiGenericRowHtml(serviceIndex, 'labor', row, index); }).join('');
+  var equipmentRows = (service.equipmentUsage || []).map(function (row, index) { return multiGenericRowHtml(serviceIndex, 'equipmentUsage', row, index); }).join('');
+  var exclusiveRows = (service.exclusiveCosts || []).map(function (row, index) { return multiExclusiveRowHtml(serviceIndex, row, index); }).join('');
+  return "<details class=\"data-card multi-service-card\" ".concat(service.expanded ? 'open' : '', " data-service-index=\"").concat(serviceIndex, "\">\n      <summary><div class=\"summary-line\"><strong>").concat(esc(service.name || 'Serviço'), "</strong><span>").concat(multiMoney(calcRow.directCostCents || 0), " direto</span></div></summary>\n      <div class=\"form-grid three\">\n        <div class=\"field\"><label>Nome do serviço</label><input value=\"").concat(attr(service.name || ''), "\" data-multi-field=\"name\"></div>\n        <div class=\"field\"><label>Serviço base</label><select data-multi-field=\"serviceCatalogId\">").concat(multiServiceCatalogOptions(service.serviceCatalogId), "</select></div>\n        <div class=\"field\"><label>Grupo de execução</label><select data-multi-field=\"executionGroupId\">").concat(multiGroupOptions(service.executionGroupId), "</select></div>\n        <div class=\"field\"><label>Quantidade</label><input type=\"number\" min=\"0\" step=\"0.01\" value=\"").concat(attr(service.quantity || 0), "\" data-multi-field=\"quantity\"></div>\n        <div class=\"field\"><label>Unidade</label><input value=\"").concat(attr(service.unit || ''), "\" data-multi-field=\"unit\"></div>\n        <div class=\"field\"><label>Dificuldade</label><select data-multi-field=\"difficultyId\">").concat(multiDifficultyOptions(service.difficultyId), "</select></div>\n      </div>\n      <div class=\"multi-metrics\">\n        <div class=\"kpi compact\"><span>Custo direto</span><strong>").concat(multiMoney(calcRow.directCostCents || 0), "</strong></div>\n        <div class=\"kpi compact\"><span>Compartilhado</span><strong>").concat(multiMoney(calcRow.allocatedSharedCostCents || 0), "</strong></div>\n        <div class=\"kpi compact\"><span>Custo gerencial</span><strong>").concat(multiMoney(calcRow.managerialCostCents || 0), "</strong></div>\n        <div class=\"kpi compact\"><span>Preço de venda</span><strong>").concat(multiMoney(calcRow.salePriceCents || 0), "</strong></div>\n        <div class=\"kpi compact\"><span>Margem</span><strong>").concat(multiPercent(calcRow.marginPercentage || 0), "</strong></div>\n        <div class=\"kpi compact\"><span>Lucro</span><strong>").concat(multiMoney(calcRow.profitCents || 0), "</strong></div>\n      </div>\n      <div class=\"multi-section-head\"><h4>Produtos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"product\">Adicionar</button></div>\n      <div class=\"multi-rows\">").concat(productRows || '<div class=\"empty compact\">Nenhum produto.</div>', "</div>\n      <div class=\"multi-section-head\"><h4>Processos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"processes\">Adicionar</button></div>\n      <div class=\"multi-rows\">").concat(processRows || '<div class=\"empty compact\">Nenhum processo.</div>', "</div>\n      <div class=\"multi-section-head\"><h4>Mão de obra</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"labor\">Adicionar</button></div>\n      <div class=\"multi-rows\">").concat(laborRows || '<div class=\"empty compact\">Nenhuma mão de obra.</div>', "</div>\n      <div class=\"multi-section-head\"><h4>Equipamentos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"equipmentUsage\">Adicionar</button></div>\n      <div class=\"multi-rows\">").concat(equipmentRows || '<div class=\"empty compact\">Nenhum equipamento.</div>', "</div>\n      <div class=\"multi-section-head\"><h4>Custos exclusivos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"exclusiveCosts\">Adicionar</button></div>\n      <div class=\"multi-rows\">").concat(exclusiveRows || '<div class=\"empty compact\">Nenhum custo exclusivo.</div>', "</div>\n      <div class=\"multi-section-foot\">\n        <button class=\"btn secondary small\" type=\"button\" data-action=\"duplicateMultiService\">Duplicar</button>\n        <button class=\"btn danger small\" type=\"button\" data-action=\"removeMultiService\">Remover</button>\n      </div>\n    </details>");
+}
+function multiSharedCostHtml(group, sharedCost, groupIndex, sharedIndex) {
+  var serviceOptions = (group.serviceIds || []).map(function (serviceId) {
+      var service = (ensureMultiSimulation().services || []).find(function (item) { return item.id === serviceId; }) || {};
+      return "<label class=\"option-card inline\"><input type=\"checkbox\" data-multi-field=\"linkedService\" value=\"".concat(serviceId, "\" ").concat((sharedCost.linkedServiceIds || []).indexOf(serviceId) >= 0 ? 'checked' : '', "><span><strong>").concat(esc(service.name || 'Serviço'), "</strong></span></label>");
+  }).join('');
+  var manualAllocationsHtml = multiManualAllocationsHtml(sharedCost, group);
+  return [
+    '<div class="multi-shared-card" data-group-index="' + groupIndex + '" data-shared-index="' + sharedIndex + '">',
+    '  <div class="form-grid three">',
+    '    <div class="field"><label>Nome</label><input value="' + attr(sharedCost.name || '') + '" data-multi-field="sharedName"></div>',
+    '    <div class="field"><label>Categoria</label><select data-multi-field="sharedCategory">' + sharedCostCategoryOptions(sharedCost.category) + '</select></div>',
+    '    <div class="field"><label>Base de cálculo</label><select data-multi-field="sharedCalcType">' + sharedCalculationTypeOptions(sharedCost.calculationType) + '</select></div>',
+    '    <div class="field"><label>Rateio</label><select data-multi-field="sharedAllocationMethod">' + sharedCostMethodOptions(sharedCost.allocationMethod) + '</select></div>',
+    '    <div class="field"><label>Valor fixo</label><input type="number" min="0" step="0.01" value="' + attr((sharedCost.fixedAmountCents || 0) / 100) + '" data-multi-field="sharedFixedAmount"></div>',
+    '    <div class="field"><label>Quantidade</label><input type="number" min="0" step="0.01" value="' + attr(sharedCost.quantity || 0) + '" data-multi-field="sharedQuantity"></div>',
+    '    <div class="field"><label>Valor unitário</label><input type="number" min="0" step="0.01" value="' + attr((sharedCost.unitCostCents || 0) / 100) + '" data-multi-field="sharedUnitCost"></div>',
+    '    <div class="field"><label>Unidade</label><input value="' + attr(sharedCost.unit || '') + '" data-multi-field="sharedUnit"></div>',
+    '    <div class="field"><label>Valor total</label><input readonly value="' + attr(multiMoney(sharedCost.totalCostCents || 0)) + '"></div>',
+    '  </div>',
+    '  <div class="multi-service-pills">' + serviceOptions + '</div>',
+    manualAllocationsHtml ? manualAllocationsHtml : '',
+    '  <div class="multi-shared-foot"><button class="btn danger small" type="button" data-action="removeSharedCost">Remover custo</button></div>',
+    '</div>'
+  ].filter(Boolean).join('\n');
+}
+function multiPersistAndRender() {
+  if (!store.multi)
+      return null;
+  store.multi = normalizeMultiSimulation(store.multi, store.data);
+  saveStore(false);
+  renderMultiScreen();
+  return store.multi;
+}
+function multiGroupAt(index) {
+  var multi = ensureMultiSimulation();
+  return multi && multi.executionGroups ? multi.executionGroups[index] || null : null;
+}
+function multiServiceAt(index) {
+  var multi = ensureMultiSimulation();
+  return multi && multi.services ? multi.services[index] || null : null;
+}
+function multiSharedCostAt(groupIndex, sharedIndex) {
+  var group = multiGroupAt(groupIndex);
+  return group && group.sharedCosts ? group.sharedCosts[sharedIndex] || null : null;
+}
+function multiDefaultServiceTemplate(groupId, index) {
+  var defaultService = store.data.services[0] || {};
+  var defaultDifficulty = (store.data.difficulties || []).find(function (item) { return item && item.defaultSelected; }) || store.data.difficulties[0] || {};
+  var defaultStages = (store.data.stages || []).filter(function (stage) { return stage && stage.defaultSelected; }).map(function (stage) { return stage.id; });
+  var defaultProduct = store.data.products[0] || {};
+  return {
+      id: uid('svc'),
+      name: 'Serviço ' + (index + 1),
+      serviceCatalogId: defaultService.id || '',
+      quantity: 1,
+      unit: 'serviço',
+      executionGroupId: groupId || '',
+      difficultyId: defaultDifficulty.id || '',
+      stageIds: defaultStages,
+      products: defaultProduct.id ? [{ productId: defaultProduct.id, quantity: 0 }] : [],
+      processes: [],
+      labor: [],
+      equipmentUsage: [],
+      exclusiveCosts: [],
+      pricingSettings: {},
+      notes: '',
+      expanded: true
+  };
+}
+function multiDefaultGroupTemplate(index) {
+  return {
+      id: uid('group'),
+      name: 'Grupo de execução ' + (index + 1),
+      address: '',
+      executionDate: '',
+      serviceIds: [],
+      sharedCosts: [],
+      notes: ''
+  };
+}
+function multiDefaultSharedCostTemplate() {
+  return {
+      id: uid('shared'),
+      name: 'Custo compartilhado',
+      category: 'other',
+      description: '',
+      calculationType: 'fixed',
+      fixedAmountCents: 0,
+      quantity: 0,
+      unitCostCents: 0,
+      unit: '',
+      linkedServiceIds: [],
+      allocationMethod: 'proportional_direct_cost',
+      manualAllocations: [],
+      markupPolicy: 'inherit_simulation',
+      notes: ''
+  };
+}
+function multiCleanNestedIds(rows) {
+  (rows || []).forEach(function (row) {
+      if (row && row.id)
+          delete row.id;
+  });
+}
+function multiAddService() {
+  var multi = ensureMultiSimulation();
+  if (!multi)
+      return;
+  if (!multi.executionGroups.length) {
+      multi.executionGroups.push(multiDefaultGroupTemplate(0));
+  }
+  multi.services.push(multiDefaultServiceTemplate(multi.executionGroups[0].id, multi.services.length));
+  multiPersistAndRender();
+}
+function multiAddGroup() {
+  var multi = ensureMultiSimulation();
+  if (!multi)
+      return;
+  multi.executionGroups.push(multiDefaultGroupTemplate(multi.executionGroups.length));
+  multiPersistAndRender();
+}
+function multiDuplicateService(index) {
+  var multi = ensureMultiSimulation();
+  var service = multi && multi.services ? multi.services[index] : null;
+  if (!multi || !service)
+      return;
+  var copy = clone(service);
+  copy.id = uid('svc');
+  copy.name = (service.name || 'Serviço') + ' (cópia)';
+  copy.expanded = true;
+  multiCleanNestedIds(copy.products);
+  multiCleanNestedIds(copy.processes);
+  multiCleanNestedIds(copy.labor);
+  multiCleanNestedIds(copy.equipmentUsage);
+  multiCleanNestedIds(copy.exclusiveCosts);
+  multi.services.splice(index + 1, 0, copy);
+  multiPersistAndRender();
+}
+function multiRemoveService(index) {
+  var multi = ensureMultiSimulation();
+  if (!multi || !multi.services || !multi.services[index])
+      return;
+  var serviceId = multi.services[index].id;
+  multi.services.splice(index, 1);
+  multi.executionGroups.forEach(function (group) {
+      group.serviceIds = (group.serviceIds || []).filter(function (id) { return id !== serviceId; });
+  });
+  multiPersistAndRender();
+}
+function multiRemoveGroup(index) {
+  var multi = ensureMultiSimulation();
+  if (!multi || !multi.executionGroups || !multi.executionGroups[index])
+      return;
+  var group = multi.executionGroups[index];
+  var fallbackGroup = multi.executionGroups[index === 0 ? 1 : 0] || null;
+  if (!fallbackGroup) {
+      fallbackGroup = multiDefaultGroupTemplate(0);
+      multi.executionGroups.push(fallbackGroup);
+  }
+  (multi.services || []).forEach(function (service) {
+      if (service.executionGroupId === group.id) {
+          service.executionGroupId = fallbackGroup.id;
+      }
+  });
+  multi.executionGroups.splice(index, 1);
+  multiPersistAndRender();
+}
+function multiAddRow(kind, serviceIndex) {
+  var service = multiServiceAt(serviceIndex);
+  if (!service)
+      return;
+  if (kind === 'product') {
+      service.products = service.products || [];
+      service.products.push({ productId: (store.data.products[0] && store.data.products[0].id) || '', quantity: 0 });
+  }
+  else if (kind === 'processes' || kind === 'labor' || kind === 'equipmentUsage') {
+      service[kind] = service[kind] || [];
+      service[kind].push({ name: kind === 'labor' ? 'Mão de obra' : (kind === 'equipmentUsage' ? 'Equipamento' : 'Processo'), quantity: 0, unit: '', unitCostCents: 0, totalCostCents: 0, notes: '' });
+  }
+  else if (kind === 'exclusiveCosts') {
+      service.exclusiveCosts = service.exclusiveCosts || [];
+      service.exclusiveCosts.push({ name: 'Custo exclusivo', category: 'other', amountCents: 0, notes: '' });
+  }
+  multiPersistAndRender();
+}
+function multiRemoveRow(kind, serviceIndex, rowIndex) {
+  var service = multiServiceAt(serviceIndex);
+  if (!service || !service[kind] || !service[kind][rowIndex])
+      return;
+  service[kind].splice(rowIndex, 1);
+  multiPersistAndRender();
+}
+function multiAddSharedCost(groupIndex) {
+  var group = multiGroupAt(groupIndex);
+  if (!group)
+      return;
+  group.sharedCosts = group.sharedCosts || [];
+  group.sharedCosts.push(multiDefaultSharedCostTemplate());
+  multiPersistAndRender();
+}
+function multiRemoveSharedCost(groupIndex, sharedIndex) {
+  var group = multiGroupAt(groupIndex);
+  if (!group || !group.sharedCosts || !group.sharedCosts[sharedIndex])
+      return;
+  group.sharedCosts.splice(sharedIndex, 1);
+  multiPersistAndRender();
+}
+function multiApplyFieldChange(el, shouldRender) {
+  if (shouldRender === void 0) { shouldRender = true; }
+  var multi = ensureMultiSimulation();
+  if (!multi)
+      return;
+  var value = el.type === 'checkbox' ? el.checked : el.value;
+  var serviceCard = el.closest('[data-service-index]');
+  var groupCard = el.closest('[data-group-index]');
+  var rowCard = el.closest('[data-multi-row]');
+  var serviceIndex = serviceCard ? parseInt(serviceCard.dataset.serviceIndex, 10) : -1;
+  var groupIndex = groupCard ? parseInt(groupCard.dataset.groupIndex, 10) : -1;
+  var rowIndex = rowCard ? parseInt(rowCard.dataset.rowIndex, 10) : -1;
+  var rowKind = rowCard ? rowCard.dataset.multiRow : '';
+  var sharedCard = el.closest('[data-shared-index]');
+  var sharedIndex = sharedCard ? parseInt(sharedCard.dataset.sharedIndex, 10) : -1;
+  var shared = sharedIndex >= 0 ? multiSharedCostAt(groupIndex, sharedIndex) : null;
+  if (serviceCard && serviceIndex >= 0 && !sharedCard) {
+      var service = multiServiceAt(serviceIndex);
+      if (!service)
+          return;
+      if (rowCard && rowKind) {
+          var row = service[rowKind] && service[rowKind][rowIndex];
+          if (!row)
+              return;
+          if (el.dataset.multiField === 'productId')
+              row.productId = value;
+          if (el.dataset.multiField === 'name')
+              row.name = value;
+          if (el.dataset.multiField === 'quantity')
+              row.quantity = parseNum(value);
+          if (el.dataset.multiField === 'unitCost')
+              row.unitCostCents = Math.round(parseNum(value) * 100);
+          if (el.dataset.multiField === 'amount')
+              row.amountCents = Math.round(parseNum(value) * 100);
+      }
+      else {
+          if (el.dataset.multiField === 'name')
+              service.name = value;
+          if (el.dataset.multiField === 'serviceCatalogId')
+              service.serviceCatalogId = value;
+          if (el.dataset.multiField === 'executionGroupId')
+              service.executionGroupId = value;
+          if (el.dataset.multiField === 'quantity')
+              service.quantity = parseNum(value);
+          if (el.dataset.multiField === 'unit')
+              service.unit = value;
+          if (el.dataset.multiField === 'difficultyId')
+              service.difficultyId = value;
+      }
+  }
+  if (groupCard && groupIndex >= 0 && !shared) {
+      var group = multiGroupAt(groupIndex);
+      if (!group)
+          return;
+      if (el.dataset.multiField === 'groupName')
+          group.name = value;
+      if (el.dataset.multiField === 'groupAddress')
+          group.address = value;
+      if (el.dataset.multiField === 'groupDate')
+          group.executionDate = value;
+  }
+  if (shared && sharedIndex >= 0) {
+      if (el.dataset.multiField === 'sharedName')
+          shared.name = value;
+      if (el.dataset.multiField === 'sharedCategory')
+          shared.category = value;
+      if (el.dataset.multiField === 'sharedCalcType')
+          shared.calculationType = value;
+      if (el.dataset.multiField === 'sharedAllocationMethod')
+          shared.allocationMethod = value;
+      if (el.dataset.multiField === 'sharedFixedAmount')
+          shared.fixedAmountCents = Math.round(parseNum(value) * 100);
+      if (el.dataset.multiField === 'sharedQuantity')
+          shared.quantity = parseNum(value);
+      if (el.dataset.multiField === 'sharedUnitCost')
+          shared.unitCostCents = Math.round(parseNum(value) * 100);
+      if (el.dataset.multiField === 'sharedUnit')
+          shared.unit = value;
+      if (el.dataset.multiField === 'linkedService') {
+          shared.linkedServiceIds = shared.linkedServiceIds || [];
+          if (el.checked && shared.linkedServiceIds.indexOf(el.value) < 0) {
+              shared.linkedServiceIds.push(el.value);
+          }
+          if (!el.checked) {
+              shared.linkedServiceIds = shared.linkedServiceIds.filter(function (id) { return id !== el.value; });
+          }
+      }
+      if (el.dataset.multiField === 'manualAllocation') {
+          shared.manualAllocations = shared.manualAllocations || [];
+          var allocation = shared.manualAllocations.find(function (item) { return item && item.serviceId === el.dataset.serviceId; });
+          if (!allocation) {
+              allocation = { serviceId: el.dataset.serviceId, percent: 0, amountCents: 0 };
+              shared.manualAllocations.push(allocation);
+          }
+          if (shared.allocationMethod === 'manual_percent')
+              allocation.percent = parseNum(value);
+          else
+              allocation.amountCents = Math.round(parseNum(value) * 100);
+      }
+  }
+  saveStore(false);
+  if (shouldRender)
+      renderMultiScreen();
+}
 document.addEventListener('click', function (ev) {
   var _a, _b;
   var btn = ev.target.closest('[data-action]');
@@ -993,6 +1467,62 @@ document.addEventListener('click', function (ev) {
       currentStep = 1;
       renderWizard();
       showScreen('wizard');
+  }
+  if (action === 'startMultiWizard') {
+      ensureMultiSimulation();
+      renderMultiScreen();
+      showScreen('multi');
+  }
+  if (action === 'addMultiService') {
+      multiAddService();
+      showScreen('multi');
+  }
+  if (action === 'addMultiGroup') {
+      multiAddGroup();
+      showScreen('multi');
+  }
+  if (action === 'duplicateMultiService') {
+      var serviceCard = btn.closest('[data-service-index]');
+      if (serviceCard)
+          multiDuplicateService(parseInt(serviceCard.dataset.serviceIndex, 10));
+      showScreen('multi');
+  }
+  if (action === 'removeMultiService') {
+      var serviceCard = btn.closest('[data-service-index]');
+      if (serviceCard && confirm('Remover este serviço da simulação multisserviço?'))
+          multiRemoveService(parseInt(serviceCard.dataset.serviceIndex, 10));
+      showScreen('multi');
+  }
+  if (action === 'removeGroup') {
+      var groupCard = btn.closest('[data-group-index]');
+      if (groupCard && confirm('Remover este grupo de execução?'))
+          multiRemoveGroup(parseInt(groupCard.dataset.groupIndex, 10));
+      showScreen('multi');
+  }
+  if (action === 'addMultiRow') {
+      var serviceCard = btn.closest('[data-service-index]');
+      if (serviceCard)
+          multiAddRow(btn.dataset.kind, parseInt(serviceCard.dataset.serviceIndex, 10));
+      showScreen('multi');
+  }
+  if (action === 'removeMultiRow') {
+      var rowCard = btn.closest('[data-multi-row]');
+      if (rowCard)
+          multiRemoveRow(btn.dataset.kind, parseInt(rowCard.dataset.serviceIndex, 10), parseInt(rowCard.dataset.rowIndex, 10));
+      showScreen('multi');
+  }
+  if (action === 'addSharedCost') {
+      var groupCard = btn.closest('[data-group-index]');
+      if (groupCard)
+          multiAddSharedCost(parseInt(groupCard.dataset.groupIndex, 10));
+      showScreen('multi');
+  }
+  if (action === 'removeSharedCost') {
+      var sharedCard = btn.closest('[data-shared-index]');
+      var groupCard = btn.closest('[data-group-index]');
+      if (groupCard && sharedCard && confirm('Remover este custo compartilhado?'))
+          multiRemoveSharedCost(parseInt(groupCard.dataset.groupIndex, 10), parseInt(sharedCard.dataset.sharedIndex, 10));
+      showScreen('multi');
   }
   if (action === 'openBase') {
       renderBase();
@@ -1263,6 +1793,9 @@ document.addEventListener('change', function (ev) {
   if (el.matches('[data-base]')) {
       updateBase(el);
   }
+  if (el.closest('#screen-multi') && el.matches('[data-multi-field]')) {
+      multiApplyFieldChange(el, true);
+  }
   if (el.id === 'importJson')
       importJson((_a = el.files) === null || _a === void 0 ? void 0 : _a[0]);
 });
@@ -1278,6 +1811,9 @@ document.addEventListener('input', function (ev) {
       var idx = parseInt(card.dataset.productRow, 10);
       store.sim.products[idx].quantity = parseNum(el.value);
       saveStore(false);
+  }
+  if (el.closest('#screen-multi') && el.matches('[data-multi-field]')) {
+      multiApplyFieldChange(el, false);
   }
   if (el.closest('#editQuoteModal')) {
       var modal = el.closest('#editQuoteModal');

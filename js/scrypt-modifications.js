@@ -19,6 +19,9 @@ function performCloudSave(show) {
     if (typeof normalizeSim === 'function') {
       store.sim = normalizeSim(store.sim, store.data);
     }
+    if (typeof normalizeMultiSimulation === 'function' && store.multi) {
+      store.multi = normalizeMultiSimulation(store.multi, store.data);
+    }
 
     if (typeof setSave === 'function') setSave('☁️ salvando...', true);
     saveInProgress = true;
@@ -98,7 +101,8 @@ function applyOverrides() {
       }, 
       simulationHistory: [],
       quote: [], 
-      sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] } 
+      sim: { serviceId: '', difficultyId: '', stageIds: [], products: [] },
+      multi: null
     };
   };
 }
@@ -142,6 +146,11 @@ async function forceSyncFromCloud() {
         if (cloudData.quote) store.quote = Array.isArray(cloudData.quote) ? cloudData.quote : [];
         store.simulationHistory = Array.isArray(cloudData.simulationHistory) ? cloudData.simulationHistory : [];
         if (cloudData.sim) store.sim = cloudData.sim;
+        if (cloudData.multi && typeof normalizeMultiSimulation === 'function') {
+          store.multi = normalizeMultiSimulation(cloudData.multi, store.data);
+        } else if (cloudData.multi) {
+          store.multi = cloudData.multi;
+        }
       } else {
         console.log('✨ Nuvem vazia, inicializando com dados padrão...');
         // Se não houver nada na nuvem, usamos o DEFAULT_DATA definido no scrypt.js
@@ -149,12 +158,21 @@ async function forceSyncFromCloud() {
         if (typeof defaultSimFromData === 'function') {
           store.sim = defaultSimFromData(store.data);
         }
+        if (typeof createDefaultMultiSimulation === 'function') {
+          store.multi = createDefaultMultiSimulation(store.data);
+        }
         // Salva imediatamente para criar o registro na nuvem
         window.saveStore(false);
       }
       
       if (typeof normalizeSim === 'function') {
         store.sim = normalizeSim(store.sim, store.data);
+      }
+      if (!store.multi && typeof createDefaultMultiSimulation === 'function') {
+        store.multi = createDefaultMultiSimulation(store.data);
+      }
+      if (store.multi && typeof normalizeMultiSimulation === 'function') {
+        store.multi = normalizeMultiSimulation(store.multi, store.data);
       }
       
       if (typeof render === 'function') render();
@@ -172,6 +190,11 @@ async function forceSyncFromCloud() {
       if (newData.quote) store.quote = Array.isArray(newData.quote) ? newData.quote : [];
       store.simulationHistory = Array.isArray(newData.simulationHistory) ? newData.simulationHistory : [];
       if (newData.sim) store.sim = newData.sim;
+      if (newData.multi && typeof normalizeMultiSimulation === 'function') {
+        store.multi = normalizeMultiSimulation(newData.multi, store.data);
+      } else if (newData.multi) {
+        store.multi = newData.multi;
+      }
       if (typeof render === 'function') render();
       if (typeof toast === 'function') toast('Dados atualizados remotamente');
     }
