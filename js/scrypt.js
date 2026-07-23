@@ -761,7 +761,7 @@ function calc(inputSim) {
 function render() {
   renderHome();
   renderWizard();
-  if (currentScreen === 'multi') {
+  if (currentScreen === 'multi' && currentFlow !== 'multi') {
       renderMultiScreen();
   }
   renderBase();
@@ -771,6 +771,12 @@ function render() {
 }
 function showScreen(name, scroll) {
   if (scroll === void 0) { scroll = true; }
+  if (name === 'multi') {
+      name = 'wizard';
+      currentFlow = 'multi';
+      store.currentFlow = 'multi';
+      ensureMultiWizardSession();
+  }
   currentScreen = name;
   document.querySelectorAll('.screen').forEach(function (s) { return s.classList.remove('active'); });
   var el = document.getElementById("screen-".concat(name));
@@ -1135,6 +1141,7 @@ function multiWizardApplyFieldChange(el, shouldRender) {
       sim.difficultyId = value;
   }
   else if (el.matches('[data-multi-stage-check]')) {
+      value = el.value;
       sim.stageIds = sim.stageIds || [];
       if (el.checked && sim.stageIds.indexOf(value) < 0) {
           sim.stageIds.push(value);
@@ -1147,6 +1154,8 @@ function multiWizardApplyFieldChange(el, shouldRender) {
       var rowCard = el.closest('[data-multi-row]');
       var rowIndex = rowCard ? parseInt(rowCard.dataset.rowIndex, 10) : -1;
       var rowKind = rowCard ? rowCard.dataset.multiRow : '';
+      if (rowKind === 'product')
+          rowKind = 'products';
       if (rowCard && rowIndex >= 0) {
           var row = sim[rowKind] && sim[rowKind][rowIndex];
           if (row) {
@@ -1659,6 +1668,11 @@ document.addEventListener('click', function (ev) {
   if (!btn)
       return;
   var action = btn.dataset.action;
+  if (currentFlow === 'multi' && btn.closest('#screen-multi')) {
+      renderWizard();
+      showScreen('wizard');
+      return;
+  }
   if (action === 'home') {
       showScreen('home');
       renderHome();
@@ -1682,6 +1696,29 @@ document.addEventListener('click', function (ev) {
       saveStore(false);
       renderWizard();
       showScreen('wizard');
+  }
+  if (currentFlow === 'multi' && btn.closest('#screen-wizard') && action === 'addMultiRow') {
+      var wizardServiceCard = btn.closest('[data-multi-wizard-service-index]');
+      if (wizardServiceCard)
+          multiWizardAddRow(btn.dataset.kind, parseInt(wizardServiceCard.dataset.multiWizardServiceIndex, 10));
+      return;
+  }
+  if (currentFlow === 'multi' && btn.closest('#screen-wizard') && action === 'removeMultiRow') {
+      var wizardRowCard = btn.closest('[data-multi-row]');
+      var wizardParentCard = btn.closest('[data-multi-wizard-service-index]');
+      if (wizardRowCard && wizardParentCard) {
+          var session = ensureMultiWizardSession();
+          var serviceIndex = parseInt(wizardParentCard.dataset.multiWizardServiceIndex, 10);
+          var rowIndex = parseInt(wizardRowCard.dataset.rowIndex, 10);
+          var sim = session.services[serviceIndex];
+          if (sim && btn.dataset.kind === 'product') {
+              sim.products.splice(rowIndex, 1);
+              session.services[serviceIndex] = normalizeSim(sim, store.data);
+              saveStore(false);
+              renderWizard();
+          }
+      }
+      return;
   }
   if (action === 'addMultiService') {
       multiAddService();

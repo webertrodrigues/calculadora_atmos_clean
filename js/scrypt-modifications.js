@@ -151,6 +151,7 @@ async function forceSyncFromCloud() {
         store.currentFlow = cloudData.currentFlow || 'single';
         store.multiWizard = cloudData.multiWizard || null;
         if (typeof currentFlow !== 'undefined') currentFlow = store.currentFlow || 'single';
+        if (typeof currentScreen !== 'undefined' && currentFlow === 'multi' && currentScreen === 'multi') currentScreen = 'wizard';
         if (cloudData.multi && typeof normalizeMultiSimulation === 'function') {
           store.multi = normalizeMultiSimulation(cloudData.multi, store.data);
         } else if (cloudData.multi) {
@@ -182,6 +183,7 @@ async function forceSyncFromCloud() {
       store.currentFlow = store.currentFlow || 'single';
       store.multiWizard = store.multiWizard || null;
       if (typeof currentFlow !== 'undefined') currentFlow = store.currentFlow || 'single';
+      if (typeof currentScreen !== 'undefined' && currentFlow === 'multi' && currentScreen === 'multi') currentScreen = 'wizard';
       
       if (typeof render === 'function') render();
       if (typeof setSave === 'function') setSave('☁️ nuvem ativa', true);
@@ -201,6 +203,7 @@ async function forceSyncFromCloud() {
       store.currentFlow = newData.currentFlow || store.currentFlow || 'single';
       store.multiWizard = newData.multiWizard || store.multiWizard || null;
       if (typeof currentFlow !== 'undefined') currentFlow = store.currentFlow || 'single';
+      if (typeof currentScreen !== 'undefined' && currentFlow === 'multi' && currentScreen === 'multi') currentScreen = 'wizard';
       if (newData.multi && typeof normalizeMultiSimulation === 'function') {
         store.multi = normalizeMultiSimulation(newData.multi, store.data);
       } else if (newData.multi) {
