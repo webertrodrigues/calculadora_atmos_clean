@@ -759,6 +759,12 @@ function calc(inputSim) {
   return { service: clone(service), serviceName: serviceLabel(service), category: service.category || '', item: service.item || '', typeSize: service.typeSize || '', porte: service.porte || '', baseValue: baseValue, sizeFactor: sizeFactor, difficulty: clone(diff), difficultyFactor: difficultyFactor, stages: clone(stages), stageFactor: stageFactor, productDetails: productDetails, costMechanic: costMechanic, costFuel: costFuel, referenceFuelKm: referenceFuelKm, machineHoursValue: machineHoursValue, machineTimeLabel: machineTimeLabel, costMachine: costMachine, costProducts: costProducts, totalCost: totalCost, finalPrice: finalPrice, profit: profit, margin: margin, markup: markup, status: status, margins: margins, rulesSnapshot: clone(r), displacementEnabled: sim.displacementEnabled };
 }
 function render() {
+  if (currentScreen === 'multi') {
+      currentScreen = 'wizard';
+      currentFlow = 'multi';
+      store.currentFlow = 'multi';
+      ensureMultiWizardSession();
+  }
   renderHome();
   renderWizard();
   if (currentScreen === 'multi' && currentFlow !== 'multi') {
@@ -1038,7 +1044,7 @@ function ensureMultiWizardSession() {
 function createMultiWizardServiceDraft(serviceId) {
   var sim = defaultSimFromData(store.data);
   sim.serviceId = serviceId || sim.serviceId;
-  sim = normalizeSim(sim, store.data);
+  sim = normalizeMultiWizardSim(sim);
   sim.serviceId = serviceId || sim.serviceId;
   return sim;
 }
@@ -1051,6 +1057,12 @@ function multiWizardActiveStepInfo() {
 function multiWizardServiceLabel(sim) {
   var service = (store.data.services || []).find(function (item) { return item && item.id === sim.serviceId; }) || {};
   return serviceLabel(service) || 'Serviço';
+}
+function normalizeMultiWizardSim(sim) {
+  var products = Array.isArray(sim && sim.products) ? clone(sim.products) : [];
+  var normalized = normalizeSim(sim, store.data);
+  normalized.products = products.filter(function (row) { return store.data.products.some(function (p) { return p.id === row.productId; }); });
+  return normalized;
 }
 function multiWizardServiceSelectionHtml() {
   var session = ensureMultiWizardSession();
@@ -1172,7 +1184,7 @@ function multiWizardApplyFieldChange(el, shouldRender) {
           }
       }
   }
-  sim = normalizeSim(sim, store.data);
+  sim = normalizeMultiWizardSim(sim);
   session.services[serviceIndex] = sim;
   saveStore(false);
   if (shouldRender)
@@ -1187,7 +1199,7 @@ function multiWizardAddRow(kind, serviceIndex) {
       sim.products = sim.products || [];
       sim.products.push({ productId: (store.data.products[0] && store.data.products[0].id) || '', quantity: 0 });
   }
-  sim = normalizeSim(sim, store.data);
+  sim = normalizeMultiWizardSim(sim);
   session.services[serviceIndex] = sim;
   saveStore(false);
   renderWizard();
@@ -1320,6 +1332,12 @@ function renderMultiScreen() {
   var shell = document.getElementById('screen-multi');
   if (!shell)
       return;
+  shell.innerHTML = '';
+  currentFlow = 'multi';
+  store.currentFlow = 'multi';
+  ensureMultiWizardSession();
+  renderWizard();
+  return;
   var multi = ensureMultiSimulation();
   if (!multi) {
       shell.innerHTML = '<section class="panel"><div class="empty">Não foi possível carregar a simulação multisserviço.</div></section>';
@@ -1668,7 +1686,10 @@ document.addEventListener('click', function (ev) {
   if (!btn)
       return;
   var action = btn.dataset.action;
-  if (currentFlow === 'multi' && btn.closest('#screen-multi')) {
+  if (btn.closest('#screen-multi')) {
+      currentFlow = 'multi';
+      store.currentFlow = 'multi';
+      ensureMultiWizardSession();
       renderWizard();
       showScreen('wizard');
       return;
@@ -1713,7 +1734,7 @@ document.addEventListener('click', function (ev) {
           var sim = session.services[serviceIndex];
           if (sim && btn.dataset.kind === 'product') {
               sim.products.splice(rowIndex, 1);
-              session.services[serviceIndex] = normalizeSim(sim, store.data);
+              session.services[serviceIndex] = normalizeMultiWizardSim(sim);
               saveStore(false);
               renderWizard();
           }
@@ -2436,7 +2457,7 @@ function multiWizardStagesHtml() {
       return '<div class="empty">Selecione pelo menos um serviço na etapa anterior.</div>';
   return session.services.map(function (sim, index) {
       var c = multiWizardServiceCalc(sim, index, session);
-      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat(money(c.totalCost), " gasto</span></div></summary><div class=\"select-list\" style=\"margin-top:12px\">").concat(store.data.stages.map(function (st) { return "<label class=\"option-card\"><input type=\"checkbox\" value=\"".concat(st.id, "\" data-multi-stage-check ").concat(sim.stageIds.includes(st.id) ? 'checked' : '', "><span><strong>").concat(esc(st.name), "</strong><span class=\"meta\"><span class=\"tag\">Peso ").concat(num(st.weight, 4), "</span></span></span></label>"); }).join(''), "</div></details>");
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat((sim.stageIds || []).length, " etapa(s)</span></div></summary><div class=\"select-list\" style=\"margin-top:12px\">").concat(store.data.stages.map(function (st) { return "<label class=\"option-card\"><input type=\"checkbox\" value=\"".concat(st.id, "\" data-multi-stage-check ").concat(sim.stageIds.includes(st.id) ? 'checked' : '', "><span><strong>").concat(esc(st.name), "</strong><span class=\"meta\"><span class=\"tag\">Peso ").concat(num(st.weight, 4), "</span></span></span></label>"); }).join(''), "</div></details>");
   }).join('');
 }
 function multiWizardProductsHtml() {
@@ -2446,7 +2467,7 @@ function multiWizardProductsHtml() {
   return session.services.map(function (sim, index) {
       var rows = (sim.products || []).map(function (row, rowIndex) { return multiProductRowHtml(index, row, rowIndex); }).join('');
       var c = multiWizardServiceCalc(sim, index, session);
-      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat(money(c.profit), " lucro</span></div></summary><div class=\"multi-section-head\"><h4>Produtos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"product\">Adicionar</button></div><div class=\"multi-rows\">").concat(rows || '<div class="empty compact">Nenhum produto.</div>', "</div></details>");
+      return "<details class=\"data-card\" open data-multi-wizard-service-index=\"".concat(index, "\"><summary><div class=\"summary-line\"><strong>").concat(esc(multiWizardServiceLabel(sim)), "</strong><span>").concat(money(c.costProducts), " em produtos</span></div></summary><div class=\"multi-section-head\"><h4>Produtos</h4><button class=\"btn secondary small\" type=\"button\" data-action=\"addMultiRow\" data-kind=\"product\">Adicionar</button></div><div class=\"multi-rows\">").concat(rows || '<div class="empty compact">Nenhum produto.</div>', "</div></details>");
   }).join('');
 }
 function multiWizardSummaryTotals() {
